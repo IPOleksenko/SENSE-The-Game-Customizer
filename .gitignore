@@ -1,0 +1,16 @@
+/out
+bin/
+build/
+/.vs
+.idea/
+.gradle/
+.cxx/
+CMakeSettings.json
+Makefile
+.vscode
+SENSE_THE_GAME_CUSTOMIZER.sh
+external/
+libsdl/
+local.properties
+debug/
+release/

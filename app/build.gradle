@@ -1,0 +1,65 @@
+plugins {
+    id 'com.android.application'
+}
+
+def getCommitCount() {
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-list', '--count', 'HEAD'
+            standardOutput = stdout
+        }
+        return stdout.toString().trim().toInteger()
+    } catch (Exception e) {
+        return 1
+    }
+}
+
+android {
+    compileSdk 34
+    ndkVersion '27.0.12077973'
+
+    defaultConfig {
+        applicationId = 'com.ipoleksenko.sense.customizer'
+        minSdkVersion 21
+        targetSdkVersion 35
+
+        versionCode getCommitCount()
+        versionName new Date().format('yyyy.MM.dd-HH.mm.ss')
+
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_static',
+                        '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
+                cppFlags '-frtti -fexceptions'
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    applicationVariants.configureEach { variant ->
+        variant.outputs.configureEach { output ->
+            def fileName = variant.buildType.name == 'release' ?
+                    "SENSE-The-Game-Customizer.apk" :
+                    "SENSE-The-Game-Customizer-DEBUG-${variant.versionName}.apk"
+            output.outputFileName = fileName
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path 'src/main/CMakeLists.txt'
+        }
+    }
+    namespace 'com.ipoleksenko.sense.customizer'
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.0')
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.getkeepsafe.relinker:relinker:1.4.4'
+}
