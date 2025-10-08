@@ -1,4 +1,4 @@
-package com.ipoleksenko.sense;
+package com.ipoleksenko.sense.customizer;
 
 import android.content.pm.ActivityInfo;
 import android.os.Bundle;
@@ -14,7 +14,10 @@ public class MainActivity extends SDLActivity
             "SDL2",
             "SDL2_image",
             "SDL2_ttf",
-            "SENSE_THE_GAME",
+            "imgui",
+            "imgui-sdl2",
+            "imgui-sdlrenderer2",
+            "SENSE_THE_GAME_CUSTOMIZER",
         };
     }
 
@@ -25,9 +28,9 @@ public class MainActivity extends SDLActivity
             .build());
 
         if (android.os.Build.VERSION.SDK_INT >= 9) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         } else {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
         }
 
         super.onCreate(savedInstanceState);

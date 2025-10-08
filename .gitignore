@@ -1,6 +1,8 @@
 /out
 bin/
 build/
+build64/
+build32/
 /.vs
 .idea/
 .gradle/

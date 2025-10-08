@@ -12,7 +12,7 @@ set(SOURCE_DIR ${PROJECT_ROOT}/cpp)
 
 include(sdl2_import.cmake)
 include(incbin_import.cmake)
-
+include(imgui_import.cmake)
 
 include(${SOURCE_DIR}/assets/module.cmake)
 include(${SOURCE_DIR}/utils/module.cmake)
@@ -40,7 +40,9 @@ else()
             SDL2
             SDL2_image
             SDL2_ttf
-
+            imgui
+            imgui-sdl2
+            imgui-sdlrenderer2
         RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}
         LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}
     )
@@ -49,6 +51,9 @@ endif()
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         SDL2::SDL2main
+        imgui
+        imgui-sdl2
+        imgui-sdlrenderer2
         ${PROJECT_NAME}_application
 )
 
