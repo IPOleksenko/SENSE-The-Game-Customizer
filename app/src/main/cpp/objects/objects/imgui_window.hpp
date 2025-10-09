@@ -15,13 +15,15 @@ private:
     std::function<void()> contentFunc;
     ImFont* font;
     bool hasCustomFont;
+    ImVec2 screenSize;
 
 public:
     ImguiWindow(const std::string& title = "##hidden", ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
                                                                                 ImGuiWindowFlags_NoResize |
                                                                                 ImGuiWindowFlags_NoMove |
                                                                                 ImGuiWindowFlags_NoCollapse | 
-                                                                                ImGuiWindowFlags_NoBackground | ImGuiChildFlags_Border
+                                                                                ImGuiWindowFlags_NoBackground | 
+                                                                                ImGuiChildFlags_Border
                                                                                 );
     virtual ~ImguiWindow() = default;
 

@@ -1,4 +1,6 @@
 #include <objects/imgui_window.hpp>
+#include <backends/imgui_impl_sdl2.h>
+#include <backends/imgui_impl_sdlrenderer2.h>
 #include <imgui_internal.h>
 #include <assets/assets.hpp>
 
@@ -12,12 +14,20 @@ ImguiWindow::ImguiWindow(const std::string& title, ImGuiWindowFlags flags)
           font(nullptr),
           hasCustomFont(false)
 {
+    ImGui_ImplSDL2_NewFrame();
+    ImGui_ImplSDLRenderer2_NewFrame();
+    ImGui::NewFrame();
+
     ImGuiIO& io = ImGui::GetIO();
 
     ImVec2 screenSize = io.DisplaySize;
-    const float baseScreenHeight = 720.0f;
-    const float baseFontSize = 50.0f;
 
+    const float baseScreenHeight = 720.0f;
+#if !defined(__ANDROID__)
+    const float baseFontSize = 30.0f;
+#else
+    const float baseFontSize = 16.0f;
+#endif
     float scale = screenSize.y / baseScreenHeight;
     float fontSize = baseFontSize * scale;
 
