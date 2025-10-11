@@ -4,49 +4,72 @@ namespace fs = std::filesystem;
 
 #if defined(__ANDROID__)
 FindGame::FindGame() = default;
-
 FindGame::~FindGame() = default;
 
-bool FindGame::isAppInstalled() {
+fs::path FindGame::getGamePath() {
     const std::string packageName = "com.ipoleksenko.sense";
 
     JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
-
     if (!env) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "JNIEnv is null!");
-        return false;
+        return {};
     }
 
     jclass activityThreadClass = env->FindClass("android/app/ActivityThread");
     if (!activityThreadClass) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find ActivityThread class");
-        return false;
+        return {};
     }
 
     jmethodID currentApplicationMethod = env->GetStaticMethodID(
-        activityThreadClass, "currentApplication", "()Landroid/app/Application;");
+            activityThreadClass, "currentApplication", "()Landroid/app/Application;");
+    if (!currentApplicationMethod) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find currentApplication() method");
+        env->DeleteLocalRef(activityThreadClass);
+        return {};
+    }
+
     jobject appInstance = env->CallStaticObjectMethod(activityThreadClass, currentApplicationMethod);
     if (!appInstance) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to get Application instance");
-        return false;
+        env->DeleteLocalRef(activityThreadClass);
+        return {};
     }
 
     jclass contextClass = env->GetObjectClass(appInstance);
     jmethodID getPackageManagerMethod = env->GetMethodID(
-        contextClass, "getPackageManager", "()Landroid/content/pm/PackageManager;");
+            contextClass, "getPackageManager", "()Landroid/content/pm/PackageManager;");
+    if (!getPackageManagerMethod) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find getPackageManager() method");
+        env->DeleteLocalRef(contextClass);
+        env->DeleteLocalRef(activityThreadClass);
+        return {};
+    }
+
     jobject packageManager = env->CallObjectMethod(appInstance, getPackageManagerMethod);
     if (!packageManager) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to get PackageManager");
-        return false;
+        env->DeleteLocalRef(contextClass);
+        env->DeleteLocalRef(activityThreadClass);
+        return {};
     }
 
     jclass pmClass = env->GetObjectClass(packageManager);
     jmethodID getPackageInfoMethod = env->GetMethodID(
-        pmClass, "getPackageInfo", "(Ljava/lang/String;I)Landroid/content/pm/PackageInfo;");
+            pmClass, "getPackageInfo", "(Ljava/lang/String;I)Landroid/content/pm/PackageInfo;");
+    if (!getPackageInfoMethod) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find getPackageInfo() method");
+        env->DeleteLocalRef(pmClass);
+        env->DeleteLocalRef(packageManager);
+        env->DeleteLocalRef(contextClass);
+        env->DeleteLocalRef(activityThreadClass);
+        return {};
+    }
 
     jstring pkgName = env->NewStringUTF(packageName.c_str());
-    bool installed = true;
     jobject packageInfo = env->CallObjectMethod(packageManager, getPackageInfoMethod, pkgName, 0);
+
+    bool installed = true;
     if (env->ExceptionCheck()) {
         env->ExceptionClear();
         installed = false;
@@ -58,9 +81,29 @@ bool FindGame::isAppInstalled() {
     env->DeleteLocalRef(contextClass);
     env->DeleteLocalRef(activityThreadClass);
 
-    return installed;
+    if (!installed) {
+        SDL_Log("Package %s not installed", packageName.c_str());
+        return {};
+    }
+
+    fs::path mediaPath = "/storage/emulated/0/Android/media/";
+    mediaPath /= packageName;
+
+    if (!fs::exists(mediaPath)) {
+        try {
+            fs::create_directories(mediaPath);
+            SDL_Log("Created directory: %s", mediaPath.string().c_str());
+        } catch (const std::exception& e) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create directory: %s", e.what());
+        }
+    }
+
+    SDL_Log("Game media path: %s", mediaPath.string().c_str());
+    return mediaPath;
 }
+
 #else
+
 FindGame::FindGame() {
     ensureSteamAppIdFile();
 }
@@ -78,8 +121,7 @@ void FindGame::ensureSteamAppIdFile() {
         out << 4051160;
         out.close();
         SDL_Log("Created steam_appid.txt with AppID: %d", 4051160);
-    }
-    else {
+    } else {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create steam_appid.txt!");
     }
 }
@@ -109,11 +151,13 @@ fs::path FindGame::getGamePath() {
     }
 
     fs::path exePath = gamePath / exeFile;
-
     if (!fs::exists(exePath)) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Executable file not found in the installation path: %s", exePath.c_str());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Executable file not found in path: %s", exePath.string().c_str());
         return {};
     }
+
+    SDL_Log("Steam game path: %s", gamePath.string().c_str());
     return gamePath;
 }
+
 #endif

@@ -7,33 +7,23 @@
 
 #if defined(__ANDROID__)
 #include <jni.h>
+#else
+#include "steam/steam_api.h"
+#endif
 
 class FindGame {
 public:
     explicit FindGame();
     ~FindGame();
-    bool isAppInstalled();
-};
-
-#else 
-#include "steam/steam_api.h"
-
-class FindGame {
-public:
 
     std::filesystem::path getGamePath();
 
-
-    explicit FindGame();
-    ~FindGame();
-
-    std::string getSteamPath();
-
-private:
+#if !defined(__ANDROID__)
+    private:
 #if defined(_WIN32)
-    std::string exeFile= "SENSE_THE_GAME.exe"; // Windows
+    std::string exeFile = "SENSE_THE_GAME.exe"; // Windows
 #elif defined(__linux__)
-    std::string exeFile = "SENSE_THE_GAME.sh"; // Linux
+    std::string exeFile = "SENSE_THE_GAME.sh";  // Linux
 #endif
 
     std::string readFile(const std::filesystem::path& path);
@@ -41,6 +31,6 @@ private:
 
     bool initSteam();
     void ensureSteamAppIdFile();
-};
 #endif
+};
 
