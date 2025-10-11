@@ -15,6 +15,8 @@
 #include <cstring>
 #include <array>
 
+#include <iostream>
+
 const std::string Game::s_orientation = "Landscape";
 const std::string Game::s_name = "SENSE: The Game Customizer";
 const SDL_Point Game::s_windowSize = { 1280, 720 };
@@ -154,8 +156,8 @@ void UpdateGamepadNavigation(ImGuiIO& io, SDL_GameController* controller)
     addAnalog(ImGuiKey_GamepadLStickDown, ly > 0.3f ? ly : 0.0f);
 }
 
-
 void Game::play(Window& window, Renderer& renderer) {
+
     SDL_Event event{};
     bool isRunning = true;
 
@@ -165,7 +167,7 @@ void Game::play(Window& window, Renderer& renderer) {
 
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 20.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 6.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarPadding, ImVec2(3.0f, 3.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarPadding, 3.0f);
 
     ImGui::GetIO().ConfigFlags  |=  ImGuiConfigFlags_NavEnableGamepad
                                 |   ImGuiBackendFlags_HasGamepad

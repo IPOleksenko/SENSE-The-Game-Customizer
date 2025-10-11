@@ -13,6 +13,9 @@ set(SOURCE_DIR ${PROJECT_ROOT}/cpp)
 include(sdl2_import.cmake)
 include(incbin_import.cmake)
 include(imgui_import.cmake)
+if(NOT ANDROID)
+    include(steamSDK_import.cmake)
+endif()
 
 include(${SOURCE_DIR}/assets/module.cmake)
 include(${SOURCE_DIR}/utils/module.cmake)
@@ -56,6 +59,13 @@ target_link_libraries(${PROJECT_NAME}
         imgui-sdlrenderer2
         ${PROJECT_NAME}_application
 )
+
+if (NOT ANDROID)
+    target_link_libraries(${PROJECT_NAME}
+        PRIVATE
+            steam_api
+    )
+endif()
 
 if(MSVC)
     set(APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.ico")

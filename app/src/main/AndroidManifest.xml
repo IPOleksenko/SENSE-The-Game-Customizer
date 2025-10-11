@@ -8,6 +8,9 @@
       android:maxSdkVersion="28" />
   <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
+  <queries>
+    <package android:name="com.ipoleksenko.sense" />
+  </queries>
 
   <application
       android:icon="@mipmap/ic_launcher"

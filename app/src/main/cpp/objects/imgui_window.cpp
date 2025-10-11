@@ -16,7 +16,6 @@ ImguiWindow::ImguiWindow(const std::string& title, ImGuiWindowFlags flags)
 {
     ImGui_ImplSDL2_NewFrame();
     ImGui_ImplSDLRenderer2_NewFrame();
-    ImGui::NewFrame();
 
     ImGuiIO& io = ImGui::GetIO();
 

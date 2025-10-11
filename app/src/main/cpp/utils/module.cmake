@@ -8,11 +8,13 @@ include_directories(${SOURCE_DIR})
 set(MODULE_SOURCES
     ${MODULE_DIR}/texture.cpp
     ${MODULE_DIR}/icon.cpp
+    ${MODULE_DIR}/find_game.cpp
 )
 
 set(MODULE_HEADERS
     ${INCLUDE_DIR}/texture.hpp
     ${INCLUDE_DIR}/icon.hpp
+    ${INCLUDE_DIR}/find_game.hpp
 )
 
 add_library(
@@ -26,10 +28,14 @@ target_include_directories(
         ${MODULE_DIR}
 )
 
-target_link_libraries(
-    ${MODULE_TARGET} PUBLIC
-        SDL2::SDL2
-        SDL2_image::SDL2_image
-        SDL2_ttf::SDL2_ttf
-        ${PROJECT_NAME}_assets
+target_link_libraries(${MODULE_TARGET} PUBLIC
+    SDL2::SDL2
+    SDL2_image::SDL2_image
+    SDL2_ttf::SDL2_ttf
+    ${PROJECT_NAME}_assets
 )
+
+if (NOT ANDROID)
+    target_link_libraries(${MODULE_TARGET} PUBLIC steam_api)
+endif()
+
