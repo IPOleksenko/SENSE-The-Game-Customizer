@@ -26,6 +26,7 @@ public:
 private:
     static void play(Window& window, Renderer& renderer);
     static void loadStartScreen(Window& window, Renderer& renderer);
+    static void showMissingGameWindow(Window& window, Renderer& renderer);
 
     bool m_isInit;
     static std::vector<SDL_GameController*> controllers;
