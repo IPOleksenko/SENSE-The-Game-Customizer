@@ -10,6 +10,7 @@ set(MODULE_SOURCES
     ${MODULE_DIR}/icon.cpp
     ${MODULE_DIR}/find_game.cpp
     ${MODULE_DIR}/input_system.cpp
+    ${MODULE_DIR}/file_manager.cpp
 )
 
 set(MODULE_HEADERS
@@ -17,6 +18,7 @@ set(MODULE_HEADERS
     ${INCLUDE_DIR}/icon.hpp
     ${INCLUDE_DIR}/find_game.hpp
     ${INCLUDE_DIR}/input_system.hpp
+    ${INCLUDE_DIR}/file_manager.hpp
 )
 
 add_library(

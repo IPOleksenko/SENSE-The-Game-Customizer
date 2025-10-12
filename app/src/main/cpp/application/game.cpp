@@ -7,6 +7,7 @@
 #include <utils/icon.hpp>
 #include <utils/find_game.hpp>
 #include <utils/input_system.hpp>
+#include <utils/file_manager.hpp>
 #include <assets/data.hpp>
 #include <SDL.h>
 #include <SDL_image.h>
@@ -184,6 +185,11 @@ void Game::play(Window& window, Renderer& renderer) {
         return;
     }
 
+    FileManager::setGamePath(gamePath);
+    FileManager::loadLocalization();
+    FileManager::loadCustomFontSize();
+    FileManager::loadDecorAssets();
+
     Folders currentFolder = Folders::Localization;
 
     ImguiWindow folderWindow("SENSE: The Game Customizer");
@@ -294,7 +300,7 @@ void Game::play(Window& window, Renderer& renderer) {
                             ImGuiInputTextFlags_None
                         );
 
-                        val = std::max(temp, 1);
+                        val = (std::max)(temp, 1);
                     }
 
                     else if constexpr (std::is_same_v<T, std::array<char, 1024>>) {
