@@ -6,6 +6,7 @@
 #include <objects/missing_game_window.hpp>
 #include <utils/icon.hpp>
 #include <utils/find_game.hpp>
+#include <utils/input_system.hpp>
 #include <assets/data.hpp>
 #include <SDL.h>
 #include <SDL_image.h>
@@ -137,54 +138,10 @@ void Game::loadStartScreen(Window& window, Renderer& renderer) {
     renderer.present();
 }
 
-void UpdateGamepadNavigation(ImGuiIO& io, SDL_GameController* controller)
-{
-    if (!controller) return;
-
-    float lx = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX) / 32767.0f;
-    float ly = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY) / 32767.0f;
-
-    auto addButton = [&](ImGuiKey key, SDL_GameControllerButton button)
-        {
-            bool pressed = SDL_GameControllerGetButton(controller, button);
-            io.AddKeyEvent(key, pressed);
-        };
-
-    auto addAnalog = [&](ImGuiKey key, float value)
-        {
-            io.AddKeyAnalogEvent(key, fabs(value) > 0.3f, fabs(value));
-        };
-
-    addButton(ImGuiKey_GamepadFaceDown, SDL_CONTROLLER_BUTTON_A); // OK/Enter
-    addButton(ImGuiKey_GamepadFaceRight, SDL_CONTROLLER_BUTTON_B); // Cancel
-    addButton(ImGuiKey_GamepadFaceLeft, SDL_CONTROLLER_BUTTON_X); // Back
-    addButton(ImGuiKey_GamepadFaceUp, SDL_CONTROLLER_BUTTON_Y);
-
-    addButton(ImGuiKey_GamepadDpadUp, SDL_CONTROLLER_BUTTON_DPAD_UP);
-    addButton(ImGuiKey_GamepadDpadDown, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
-    addButton(ImGuiKey_GamepadDpadLeft, SDL_CONTROLLER_BUTTON_DPAD_LEFT);
-    addButton(ImGuiKey_GamepadDpadRight, SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
-
-    addAnalog(ImGuiKey_GamepadLStickLeft, lx < -0.3f ? -lx : 0.0f);
-    addAnalog(ImGuiKey_GamepadLStickRight, lx > 0.3f ? lx : 0.0f);
-    addAnalog(ImGuiKey_GamepadLStickUp, ly < -0.3f ? -ly : 0.0f);
-    addAnalog(ImGuiKey_GamepadLStickDown, ly > 0.3f ? ly : 0.0f);
-}
-
-
 void Game::play(Window& window, Renderer& renderer) {
 
     SDL_Event event{};
     bool isRunning = true;
-
-    FindGame findGame;
-    std::filesystem::path gamePath = findGame.getGamePath();
-    if (gamePath.empty() || !std::filesystem::exists(gamePath))
-    {
-        MissingGameWindow missingGameWindow(window, renderer);
-        missingGameWindow.showMissingGameWindow();
-        return;
-    }
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -194,17 +151,38 @@ void Game::play(Window& window, Renderer& renderer) {
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 6.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarPadding, 3.0f);
 
-    ImGui::GetIO().ConfigFlags  |=  ImGuiConfigFlags_NavEnableGamepad
-                                |   ImGuiBackendFlags_HasGamepad
-                                |   ImGuiConfigFlags_NavEnableKeyboard
-                                |   ImGuiConfigFlags_IsTouchScreen;
-
     ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowRounding = 10.0f;
+    style.FrameRounding = 6.0f;
+    style.GrabRounding = 4.0f;
+    style.ScrollbarRounding = 8.0f;
+    style.WindowPadding = ImVec2(20, 20);
+    style.ItemSpacing = ImVec2(12, 10);
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.10f, 0.11f, 0.15f, 1.0f);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.25f, 0.45f, 0.90f, 1.0f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.35f, 0.55f, 1.0f, 1.0f);
+    style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.15f, 0.35f, 0.85f, 1.0f);
+    style.Colors[ImGuiCol_Text] = ImVec4(0.95f, 0.96f, 0.98f, 1.0f);
+
     ImGui::GetIO().IniFilename = nullptr;
 
     ImGui_ImplSDL2_InitForSDLRenderer(window.getSdlWindow(), renderer.getSdlRenderer());
     ImGui_ImplSDLRenderer2_Init(renderer.getSdlRenderer());
 
+    ImGui::GetIO().ConfigFlags  |= ImGuiConfigFlags_NavEnableGamepad
+                                |  ImGuiBackendFlags_HasGamepad
+                                |  ImGuiConfigFlags_NavEnableKeyboard
+                                |  ImGuiConfigFlags_IsTouchScreen;
+
+    FindGame findGame;
+    std::filesystem::path gamePath = findGame.getGamePath();
+    if (gamePath.empty() || !std::filesystem::exists(gamePath))
+    {
+        MissingGameWindow missingGameWindow(window, renderer);
+        missingGameWindow.showMissingGameWindow(controllers);
+        return;
+    }
 
     Folders currentFolder = Folders::Localization;
 
@@ -316,7 +294,7 @@ void Game::play(Window& window, Renderer& renderer) {
                             ImGuiInputTextFlags_None
                         );
 
-                        val = temp;
+                        val = std::max(temp, 1);
                     }
 
                     else if constexpr (std::is_same_v<T, std::array<char, 1024>>) {
@@ -404,38 +382,8 @@ void Game::play(Window& window, Renderer& renderer) {
         });
 
     while (isRunning) {
-        while (SDL_PollEvent(&event)) {
-            ImGui_ImplSDL2_ProcessEvent(&event);
-            switch (event.type) {
-            case SDL_QUIT: {
-                isRunning = false;
-                break;
-            }
-            case SDL_CONTROLLERDEVICEADDED: {
-                int joystick_index = event.cdevice.which;
-                if (SDL_IsGameController(joystick_index)) {
-                    SDL_GameController* controller = SDL_GameControllerOpen(joystick_index);
-                    if (controller) {
-                        controllers.push_back(controller);
-                        SDL_Log("Controller %d connected: %s", joystick_index, SDL_GameControllerName(controller));
-                    }
-                }
-                break;
-            }
-            case SDL_CONTROLLERDEVICEREMOVED: {
-                SDL_JoystickID joyId = event.cdevice.which;
-                for (auto it = controllers.begin(); it != controllers.end(); ++it) {
-                    if (SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(*it)) == joyId) {
-                        SDL_GameControllerClose(*it);
-                        controllers.erase(it);
-                        SDL_Log("Controller %d disconnected", joyId);
-                        break;
-                    }
-                }
-                break;
-            }
-            }
-        }
+        ProcessSDLEvents(isRunning, controllers);
+
         if (!controllers.empty())
             UpdateGamepadNavigation(ImGui::GetIO(), controllers[0]);
 

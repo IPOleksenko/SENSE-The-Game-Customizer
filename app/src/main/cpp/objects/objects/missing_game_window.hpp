@@ -1,12 +1,14 @@
 #pragma once
 
+#include <utils/input_system.hpp>
+
 #include <SDL.h>
 #include <imgui.h>
 #include <backends/imgui_impl_sdl2.h>
 #include <backends/imgui_impl_sdlrenderer2.h>
-
 #include <application/window.hpp>
 #include <application/renderer.hpp>
+#include <vector>
 #if defined(__ANDROID__)
 #include <jni.h>
 #else
@@ -24,11 +26,9 @@ public:
     MissingGameWindow(Window& window, Renderer& renderer);
     ~MissingGameWindow();
 
-    void showMissingGameWindow();
+    void showMissingGameWindow(std::vector<SDL_GameController*> controllers);
 
 private:
-    void initImGui();
-    void applyStyle();
     void shutdownImGui();
 
 private:

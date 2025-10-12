@@ -7,33 +7,6 @@ MissingGameWindow::MissingGameWindow(Window& window, Renderer& renderer)
 
 MissingGameWindow::~MissingGameWindow() = default;
 
-void MissingGameWindow::applyStyle()
-{
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 10.0f;
-    style.FrameRounding = 6.0f;
-    style.GrabRounding = 4.0f;
-    style.ScrollbarRounding = 8.0f;
-    style.WindowPadding = ImVec2(20, 20);
-    style.ItemSpacing = ImVec2(12, 10);
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.10f, 0.11f, 0.15f, 1.0f);
-    style.Colors[ImGuiCol_Button] = ImVec4(0.25f, 0.45f, 0.90f, 1.0f);
-    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.35f, 0.55f, 1.0f, 1.0f);
-    style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.15f, 0.35f, 0.85f, 1.0f);
-    style.Colors[ImGuiCol_Text] = ImVec4(0.95f, 0.96f, 0.98f, 1.0f);
-}
-
-void MissingGameWindow::initImGui()
-{
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-    applyStyle();
-
-    ImGui_ImplSDL2_InitForSDLRenderer(m_window.getSdlWindow(), m_renderer.getSdlRenderer());
-    ImGui_ImplSDLRenderer2_Init(m_renderer.getSdlRenderer());
-}
-
 void MissingGameWindow::shutdownImGui()
 {
     ImGui_ImplSDLRenderer2_Shutdown();
@@ -41,12 +14,10 @@ void MissingGameWindow::shutdownImGui()
     ImGui::DestroyContext();
 }
 
-void MissingGameWindow::showMissingGameWindow()
+void MissingGameWindow::showMissingGameWindow(std::vector<SDL_GameController*> controllers)
 {
     SDL_Event event{};
     bool isRunning = true;
-
-    initImGui();
 
 #if !defined(__ANDROID__)
     m_steamRunning = SteamAPI_Init();
@@ -54,11 +25,18 @@ void MissingGameWindow::showMissingGameWindow()
 
     while (isRunning)
     {
-        while (SDL_PollEvent(&event))
+        ProcessSDLEvents(isRunning, controllers);
+
+        if (!controllers.empty())
+            UpdateGamepadNavigation(ImGui::GetIO(), controllers[0]);
+
+        if (ImGui::GetIO().WantTextInput)
         {
-            ImGui_ImplSDL2_ProcessEvent(&event);
-            if (event.type == SDL_QUIT)
-                isRunning = false;
+            SDL_StartTextInput();
+        }
+        else
+        {
+            SDL_StopTextInput();
         }
 
         m_renderer.setDrawColor({ 15, 15, 20, 255 });
@@ -124,10 +102,12 @@ void MissingGameWindow::showMissingGameWindow()
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
         ImGui::Begin("Missing Game", nullptr,
-            ImGuiWindowFlags_NoDecoration |
-            ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoTitleBar |
             ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoSavedSettings);
+            ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoBackground |
+            ImGuiChildFlags_Border);
 
         ImVec2 screen = ImGui::GetIO().DisplaySize;
         ImVec2 center(screen.x * 0.5f, screen.y * 0.5f);
