@@ -50,4 +50,7 @@ bool isCommentLine(const std::string& line);
 std::string joinPath(const std::string& base, const std::string& path);
 std::string unescapeString(const std::string& input);
 
-} // namespace modding
+void updateOrAddLine(std::vector<std::string>& lines, const std::string& key, const std::string& newValue, bool quoted = false);
+void updateAllConfigFiles() ;
+
+} // namespace FileManager

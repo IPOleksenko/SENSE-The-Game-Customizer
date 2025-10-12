@@ -14,7 +14,7 @@ enum class Folders {
 };
 
 constexpr char IDLE_TEXT[] = (R"(Instructions:
-\
+
 Keyboard:
     * Press A (or the Left Arrow key) and D (or the Right Arrow key) alternately to move.
     * Press the Spacebar to enable or disable Endless Mode (only before you start moving).
@@ -25,7 +25,7 @@ R"(
     * Press F to switch between windowed and fullscreen mode.
 )"
 #endif
-R"(\
+R"(
 Gamepad:
     * Press Left or Right on the Directional Pad (or the X / B buttons) alternately to move.
     * Press the A button to enable or disable Endless Mode (only before you start moving).
@@ -36,12 +36,12 @@ R"(
     * Press the Y button to switch between windowed and fullscreen mode.
 )"
 #endif
-R"(\
+R"(
 Touchscreen:
     * Tap the left and right sides of the screen alternately to move.
     * Hold two fingers on the screen for two seconds to enable or disable Endless Mode (only before you start moving).
 )"
-R"(\
+R"(
 * Cross the center mark to begin moving.
 * After crossing the center, maintain your balance — do not allow the pointer to touch the red zone, or you will lose.)"
 );

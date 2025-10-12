@@ -34,4 +34,6 @@ private:
     static const std::string s_name;
     static const SDL_Point s_windowSize;
     static const SDL_Point s_windowPos;
+    static const void launchGame();
+
 };

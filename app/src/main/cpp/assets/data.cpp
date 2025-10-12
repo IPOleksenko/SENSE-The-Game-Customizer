@@ -34,12 +34,12 @@ std::vector<std::pair<std::string, std::variant<int, std::array<char, 1024>>>> F
 };
 
 std::vector<std::pair<std::string, bool>> StandartDecorList = {
-    {"grass", false},
-    {"flower1", false},
-    {"flower2", false},
-    {"flower3", false},
-    {"flower4", false},
-    {"smallrock1", false},
-    {"smallrock2", false},
-    {"smallrock3", false} 
+    {"grass", true},
+    {"flower1", true},
+    {"flower2", true},
+    {"flower3", true},
+    {"flower4", true},
+    {"smallrock1", true},
+    {"smallrock2", true},
+    {"smallrock3", true} 
 };

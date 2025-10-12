@@ -139,6 +139,81 @@ void Game::loadStartScreen(Window& window, Renderer& renderer) {
     renderer.present();
 }
 
+const void Game::launchGame() {
+#if defined(__ANDROID__)
+    const char* packageName = "com.ipoleksenko.sense";
+    JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+    jobject activity = (jobject)SDL_AndroidGetActivity();
+
+    jclass activityClass = env->GetObjectClass(activity);
+    if (!activityClass) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to get activity class");
+        return;
+    }
+
+    jmethodID getPackageManager = env->GetMethodID(activityClass,
+                                                   "getPackageManager", "()Landroid/content/pm/PackageManager;");
+    jobject packageManager = env->CallObjectMethod(activity, getPackageManager);
+
+    jclass pmClass = env->GetObjectClass(packageManager);
+    jmethodID getLaunchIntentForPackage = env->GetMethodID(pmClass,
+                                                           "getLaunchIntentForPackage", "(Ljava/lang/String;)Landroid/content/Intent;");
+    jstring jPackageName = env->NewStringUTF(packageName);
+    jobject launchIntent = env->CallObjectMethod(packageManager, getLaunchIntentForPackage, jPackageName);
+
+    if (launchIntent) {
+        jmethodID startActivity = env->GetMethodID(activityClass, "startActivity", "(Landroid/content/Intent;)V");
+        env->CallVoidMethod(activity, startActivity, launchIntent);
+        SDL_Log("Launching installed game: %s", packageName);
+    } else {
+        jclass uriClass = env->FindClass("android/net/Uri");
+        jmethodID parse = env->GetStaticMethodID(uriClass, "parse", "(Ljava/lang/String;)Landroid/net/Uri;");
+        std::string marketUrl = "market://details?id=" + std::string(packageName);
+        jstring jUrl = env->NewStringUTF(marketUrl.c_str());
+        jobject uri = env->CallStaticObjectMethod(uriClass, parse, jUrl);
+
+        jclass intentClass = env->FindClass("android/content/Intent");
+        jmethodID intentConstructor = env->GetMethodID(intentClass, "<init>",
+                                                       "(Ljava/lang/String;Landroid/net/Uri;)V");
+        jstring actionView = env->NewStringUTF("android.intent.action.VIEW");
+        jobject marketIntent = env->NewObject(intentClass, intentConstructor, actionView, uri);
+
+        jmethodID startActivity = env->GetMethodID(activityClass, "startActivity", "(Landroid/content/Intent;)V");
+        env->CallVoidMethod(activity, startActivity, marketIntent);
+        SDL_Log("Game not installed, opening Google Play: %s", marketUrl.c_str());
+
+        env->DeleteLocalRef(uri);
+        env->DeleteLocalRef(jUrl);
+        env->DeleteLocalRef(uriClass);
+        env->DeleteLocalRef(intentClass);
+        env->DeleteLocalRef(actionView);
+        env->DeleteLocalRef(marketIntent);
+    }
+
+    env->DeleteLocalRef(jPackageName);
+    env->DeleteLocalRef(pmClass);
+    env->DeleteLocalRef(packageManager);
+    env->DeleteLocalRef(activityClass);
+    env->DeleteLocalRef(activity);
+#else
+    const char* steamAppId = "3832650";
+    std::string steamCommand = "steam://run/" + std::string(steamAppId);
+
+#ifdef _WIN32
+    ShellExecuteA(nullptr, "open", steamCommand.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+#elif defined(__APPLE__)
+    std::string command = "open \"" + steamCommand + "\"";
+    system(command.c_str());
+#else
+    std::string command = "xdg-open \"" + steamCommand + "\"";
+    system(command.c_str());
+#endif
+
+    SDL_Log("Launching Steam game: %s", steamCommand.c_str());
+#endif
+}
+
+
 void Game::play(Window& window, Renderer& renderer) {
 
     SDL_Event event{};
@@ -373,17 +448,21 @@ void Game::play(Window& window, Renderer& renderer) {
             float startY = (windowSize.y - totalHeight) * 0.5f;
 
             ImGui::SetCursorPos(ImVec2(startX, startY));
-            if (ImGui::Button("Save", ImVec2(buttonWidth, buttonHeight)))
-                SDL_Log("Save");
+            if (ImGui::Button("Save", ImVec2(buttonWidth, buttonHeight))) {
+                FileManager::updateAllConfigFiles();
+            }
 
             ImGui::SetCursorPos(ImVec2(startX, startY + buttonHeight + spacing));
-            if (ImGui::Button("Play", ImVec2(buttonWidth, buttonHeight)))
-                SDL_Log("Play");
+            if (ImGui::Button("Play", ImVec2(buttonWidth, buttonHeight))) {
+                launchGame();
+            }
 
             ImGui::SetCursorPos(ImVec2(startX, startY + (buttonHeight + spacing) * 2));
-            if (ImGui::Button("Save and Play", ImVec2(buttonWidth, buttonHeight)))
-                SDL_Log("Save and Play");
-                }
+            if (ImGui::Button("Save and Play", ImVec2(buttonWidth, buttonHeight))) {
+                FileManager::updateAllConfigFiles();
+                launchGame();
+            }
+        }
 
         });
 
