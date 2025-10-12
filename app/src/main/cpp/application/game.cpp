@@ -3,6 +3,7 @@
 #include <application/renderer.hpp>
 #include <objects/text.hpp>
 #include <objects/imgui_window.hpp>
+#include <objects/missing_game_window.hpp>
 #include <utils/icon.hpp>
 #include <utils/find_game.hpp>
 #include <assets/data.hpp>
@@ -170,147 +171,6 @@ void UpdateGamepadNavigation(ImGuiIO& io, SDL_GameController* controller)
     addAnalog(ImGuiKey_GamepadLStickDown, ly > 0.3f ? ly : 0.0f);
 }
 
-void Game::showMissingGameWindow(Window& window, Renderer& renderer)
-{
-#if defined(__ANDROID__)
-
-#else
-    SDL_Event event{};
-    bool isRunning = true;
-
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 10.0f;
-    style.FrameRounding = 6.0f;
-    style.GrabRounding = 4.0f;
-    style.ScrollbarRounding = 8.0f;
-    style.WindowPadding = ImVec2(20, 20);
-    style.ItemSpacing = ImVec2(12, 10);
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.10f, 0.11f, 0.15f, 1.0f);
-    style.Colors[ImGuiCol_Button] = ImVec4(0.25f, 0.45f, 0.90f, 1.0f);
-    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.35f, 0.55f, 1.0f, 1.0f);
-    style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.15f, 0.35f, 0.85f, 1.0f);
-    style.Colors[ImGuiCol_Text] = ImVec4(0.95f, 0.96f, 0.98f, 1.0f);
-
-    ImGui_ImplSDL2_InitForSDLRenderer(window.getSdlWindow(), renderer.getSdlRenderer());
-    ImGui_ImplSDLRenderer2_Init(renderer.getSdlRenderer());
-
-    const AppId_t baseGameAppId = 3832650;
-
-    bool steamRunning = SteamAPI_Init();
-
-    while (isRunning)
-    {
-        while (SDL_PollEvent(&event))
-        {
-            ImGui_ImplSDL2_ProcessEvent(&event);
-            if (event.type == SDL_QUIT)
-                isRunning = false;
-        }
-
-        renderer.setDrawColor({ 15, 15, 20, 255 });
-        renderer.clear();
-
-        ImGui_ImplSDLRenderer2_NewFrame();
-        ImGui_ImplSDL2_NewFrame();
-        ImGui::NewFrame();
-
-        bool ownsGame = false;
-        bool isInstalled = false;
-
-        if (steamRunning && SteamUser() && SteamApps())
-        {
-            ownsGame = SteamApps()->BIsSubscribedApp(baseGameAppId);
-            isInstalled = SteamApps()->BIsAppInstalled(baseGameAppId);
-        }
-        else
-        {
-            if (!steamRunning)
-                steamRunning = SteamAPI_Init();
-        }
-
-        ImGui::SetNextWindowPos(ImVec2(0, 0));
-        ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-        ImGui::Begin("Missing Game", nullptr,
-            ImGuiWindowFlags_NoDecoration |
-            ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoSavedSettings);
-
-        ImVec2 screen = ImGui::GetIO().DisplaySize;
-        ImVec2 center(screen.x * 0.5f, screen.y * 0.5f);
-        ImGui::SetCursorPos(ImVec2(center.x - 200, center.y - 120));
-
-        if (!steamRunning)
-        {
-            ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.4f, 1.0f),
-                "Steam is not running.\nPlease start Steam and restart this program.");
-        }
-        else if (!ownsGame)
-        {
-            ImGui::TextWrapped("You don't own the base game.\nPlease purchase it on Steam to continue.");
-
-            ImVec2 btn(260, 70);
-            ImGui::SetCursorPos(ImVec2(center.x - btn.x / 2, center.y + 20));
-            if (ImGui::Button("Open Steam Store Page", btn))
-            {
-                const char* url = "https://store.steampowered.com/app/3832650/";
-#ifdef _WIN32
-                ShellExecuteA(nullptr, "open", url, nullptr, nullptr, SW_SHOWNORMAL);
-#else
-                system((std::string("xdg-open ") + url).c_str());
-#endif
-            }
-        }
-        else if (!isInstalled)
-        {
-            ImGui::TextWrapped("You own the game, but it is not installed.\nPlease install it to use this customizer.");
-
-            ImVec2 btn(240, 70);
-            ImGui::SetCursorPos(ImVec2(center.x - btn.x / 2, center.y + 20));
-            if (ImGui::Button("Install Game", btn))
-            {
-                const char* cmd = "steam://install/3832650";
-#ifdef _WIN32
-                ShellExecuteA(nullptr, "open", cmd, nullptr, nullptr, SW_SHOWNORMAL);
-#else
-                system((std::string("xdg-open ") + cmd).c_str());
-#endif
-            }
-        }
-        else
-        {
-            ImGui::TextWrapped("The game is installed and ready to use!\nPlease restart the application to continue.");
-
-            ImVec2 btn(200, 60);
-            ImGui::SetCursorPos(ImVec2(center.x - btn.x / 2, center.y + 20));
-            if (ImGui::Button("Close Application", btn))
-                isRunning = false;
-        }
-
-        ImGui::End();
-        ImGui::Render();
-        ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer.getSdlRenderer());
-        renderer.present();
-
-        if (steamRunning)
-            SteamAPI_RunCallbacks();
-
-        SDL_Delay(500);
-    }
-
-    if (steamRunning)
-        SteamAPI_Shutdown();
-
-    ImGui_ImplSDLRenderer2_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
-#endif
-}
-
 
 void Game::play(Window& window, Renderer& renderer) {
 
@@ -321,7 +181,8 @@ void Game::play(Window& window, Renderer& renderer) {
     std::filesystem::path gamePath = findGame.getGamePath();
     if (gamePath.empty() || !std::filesystem::exists(gamePath))
     {
-        showMissingGameWindow(window, renderer);
+        MissingGameWindow missingGameWindow(window, renderer);
+        missingGameWindow.showMissingGameWindow();
         return;
     }
 
@@ -336,8 +197,8 @@ void Game::play(Window& window, Renderer& renderer) {
     ImGui::GetIO().ConfigFlags  |=  ImGuiConfigFlags_NavEnableGamepad
                                 |   ImGuiBackendFlags_HasGamepad
                                 |   ImGuiConfigFlags_NavEnableKeyboard
-                                |   ImGuiConfigFlags_IsTouchScreen
-                                |   ImGuiWindowFlags_NoTitleBar;
+                                |   ImGuiConfigFlags_IsTouchScreen;
+
     ImGui::StyleColorsDark();
     ImGui::GetIO().IniFilename = nullptr;
 

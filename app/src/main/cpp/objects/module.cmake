@@ -6,11 +6,13 @@ set(MODULE_TARGET ${PROJECT_NAME}_${MODULE_NAME})
 set(MODULE_SOURCES
     ${MODULE_DIR}/text.cpp
     ${MODULE_DIR}/imgui_window.cpp
+    ${MODULE_DIR}/missing_game_window.cpp
 )
 
 set(MODULE_HEADERS
     ${INCLUDE_DIR}/text.hpp
     ${INCLUDE_DIR}/imgui_window.hpp
+    ${INCLUDE_DIR}/missing_game_window.hpp
 )
 
 add_library(
@@ -28,6 +30,7 @@ target_include_directories(
 target_link_libraries(
     ${MODULE_TARGET} PUBLIC
         ${PROJECT_NAME}_assets
+        ${PROJECT_NAME}_application
         imgui
         ${PROJECT_NAME}_utils
 )
