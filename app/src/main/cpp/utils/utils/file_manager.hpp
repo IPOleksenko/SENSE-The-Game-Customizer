@@ -17,20 +17,11 @@ bool dirExists(const std::string& path);
 bool createDir(const std::string& path);
 
 // Localization
-struct LocalizationEntry {
-    std::string key;
-    std::optional<std::string> value;  // nullopt = use default text
-};
-
 std::map<std::string, std::string> loadLocalization();
 bool createDefaultLocalizationFile();
 
 // Custom font
-extern int fontSize;
-extern int anotherFontSize;
-
 bool loadCustomFontSize();
-std::string loadCustomFontPath();
 bool createDefaultFontFile();
 
 // Decor assets

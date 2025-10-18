@@ -259,8 +259,11 @@ void Game::play(Window& window, Renderer& renderer) {
         missingGameWindow.showMissingGameWindow(controllers);
         return;
     }
-
+#if defined(__ANDROID__)
+    FileManager::setGamePath("");
+#else
     FileManager::setGamePath(gamePath);
+#endif
     FileManager::loadLocalization();
     FileManager::loadCustomFontSize();
     FileManager::loadDecorAssets();
@@ -362,7 +365,7 @@ void Game::play(Window& window, Renderer& renderer) {
                     if constexpr (std::is_same_v<T, int>) {
                         int temp = val;
 
-                        ImGui::SliderInt(("##slider_" + key).c_str(), &temp, 1, 100);
+                        ImGui::SliderInt(("##slider_" + key).c_str(), &temp, 1, 128);
 
                         ImGui::Spacing();
                         ImGui::InputScalar(
@@ -375,7 +378,7 @@ void Game::play(Window& window, Renderer& renderer) {
                             ImGuiInputTextFlags_None
                         );
 
-                        val = (std::max)(temp, 1);
+                        val = std::clamp(temp, 1, 128);
                     }
 
                     else if constexpr (std::is_same_v<T, std::array<char, 1024>>) {

@@ -30,7 +30,7 @@ std::vector<std::pair<std::string, std::array<char, 1024>>> LocalizationList = {
 std::vector<std::pair<std::string, std::variant<int, std::array<char, 1024>>>> FontList = {
     {"FONT", std::array<char, 1024>{""}},
     {"FONT_SIZE", 24},
-    {"FONT_ANOTHER_TEXT_SIZE", 48}
+    {"OTHER_TEXT_FONT_SIZE", 48}
 };
 
 std::vector<std::pair<std::string, bool>> StandartDecorList = {

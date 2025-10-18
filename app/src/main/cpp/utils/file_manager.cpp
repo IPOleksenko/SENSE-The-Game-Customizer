@@ -11,6 +11,49 @@
 #include <jni.h>
 #endif
 
+#if defined(__ANDROID__)
+bool callFdExistsJNI(const std::string& path) {
+    JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+    jobject activity = (jobject)SDL_AndroidGetActivity();
+    if (!env || !activity) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "JNI environment or activity is null");
+        return false;
+    }
+
+    jclass activityClass = env->GetObjectClass(activity);
+    if (!activityClass) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to get activity class");
+        return false;
+    }
+
+    jclass fileManagerClass = env->FindClass("com/ipoleksenko/sense/customizer/FileManager");
+    if (!fileManagerClass) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "FileManager class not found");
+        return false;
+    }
+
+    jmethodID fdExistsMethod = env->GetStaticMethodID(
+            fileManagerClass,
+            "fdExists",
+            "(Landroid/content/Context;Ljava/lang/String;)Z"
+    );
+
+    if (!fdExistsMethod) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "fdExists method not found");
+        return false;
+    }
+
+    jstring jPath = env->NewStringUTF(path.c_str());
+    jboolean result = env->CallStaticBooleanMethod(fileManagerClass, fdExistsMethod, activity, jPath);
+
+    env->DeleteLocalRef(jPath);
+    env->DeleteLocalRef(fileManagerClass);
+    env->DeleteLocalRef(activityClass);
+
+    return (bool)result;
+}
+#endif
+
 namespace FileManager {
     std::filesystem::path gamePath;
 
@@ -24,6 +67,55 @@ namespace FileManager {
 
     std::vector<std::string> readTextFile(const std::string& path) {
         std::vector<std::string> lines;
+
+#if defined(__ANDROID__)
+        JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+        jobject activity = (jobject)SDL_AndroidGetActivity();
+
+        if (!env || !activity) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "JNIEnv or Activity is null!");
+            return {};
+        }
+
+        jclass cls = env->FindClass("com/ipoleksenko/sense/customizer/FileManager");
+        if (!cls) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot find FileManager class!");
+            return {};
+        }
+
+        jmethodID mid = env->GetStaticMethodID(
+                cls,
+                "readFullText",
+                "(Landroid/content/Context;Ljava/lang/String;)Ljava/lang/String;"
+        );
+        if (!mid) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Method readFullText not found!");
+            env->DeleteLocalRef(cls);
+            return {};
+        }
+
+        jstring jfilename = env->NewStringUTF(path.c_str());
+        jstring jresult = (jstring)env->CallStaticObjectMethod(cls, mid, activity, jfilename);
+
+        if (jresult) {
+            const char* chars = env->GetStringUTFChars(jresult, nullptr);
+            std::string result(chars);
+            env->ReleaseStringUTFChars(jresult, chars);
+            env->DeleteLocalRef(jresult);
+
+            std::istringstream iss(result);
+            std::string line;
+            while (std::getline(iss, line)) {
+                lines.push_back(line);
+            }
+        } else {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "readFullText returned null for path: %s", path.c_str());
+        }
+
+        env->DeleteLocalRef(jfilename);
+        env->DeleteLocalRef(cls);
+
+#else
         try {
             std::ifstream file(path);
             if (!file.is_open()) {
@@ -39,30 +131,83 @@ namespace FileManager {
         catch (const std::exception& e) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error reading file %s: %s", path.c_str(), e.what());
         }
+#endif
         return lines;
     }
 
     bool writeTextFile(const std::string& path, const std::vector<std::string>& lines) {
-        try {
-            std::ofstream file(path, std::ios::out | std::ios::trunc);
-            if (!file.is_open()) {
-                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Could not open file for writing: %s", path.c_str());
-                return false;
-            }
-            for (const auto& l : lines) {
-                file << l << "\n";
-            }
-            return true;
-        }
-        catch (const std::exception& e) {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error writing file %s: %s", path.c_str(), e.what());
+#if defined(__ANDROID__)
+        JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+        jobject activity = (jobject)SDL_AndroidGetActivity();
+
+        if (!env || !activity) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to get JNI environment or SDLActivity");
             return false;
         }
+
+        jclass fileManagerClass = env->FindClass("com/ipoleksenko/sense/customizer/FileManager");
+        if (!fileManagerClass) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot find FileManager class");
+            return false;
+        }
+
+        jmethodID writeTextFileMethod = env->GetStaticMethodID(
+                fileManagerClass,
+                "writeTextFile",
+                "(Landroid/content/Context;Ljava/lang/String;Ljava/util/List;)Z"
+        );
+        if (!writeTextFileMethod) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot find writeTextFile() method in FileManager");
+            return false;
+        }
+
+        jstring jPath = env->NewStringUTF(path.c_str());
+
+        jclass arrayListClass = env->FindClass("java/util/ArrayList");
+        jmethodID arrayListCtor = env->GetMethodID(arrayListClass, "<init>", "()V");
+        jmethodID arrayListAdd = env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
+        jobject jList = env->NewObject(arrayListClass, arrayListCtor);
+
+        for (const auto& l : lines) {
+            jstring jLine = env->NewStringUTF(l.c_str());
+            env->CallBooleanMethod(jList, arrayListAdd, jLine);
+            env->DeleteLocalRef(jLine);
+        }
+
+        jboolean result = env->CallStaticBooleanMethod(fileManagerClass, writeTextFileMethod, activity, jPath, jList);
+
+        env->DeleteLocalRef(jPath);
+        env->DeleteLocalRef(jList);
+        env->DeleteLocalRef(fileManagerClass);
+
+        return result == JNI_TRUE;
+
+#else
+    try {
+        std::ofstream file(path, std::ios::out | std::ios::trunc);
+        if (!file.is_open()) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Could not open file for writing: %s", path.c_str());
+            return false;
+        }
+        for (const auto& l : lines) {
+            file << l << "\n";
+        }
+        return true;
+    }
+    catch (const std::exception& e) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error writing file %s: %s", path.c_str(), e.what());
+        return false;
+    }
+#endif
     }
 
     bool fileExists(const std::string& path) {
         try {
+#if defined(__ANDROID__)
+            return callFdExistsJNI(path);
+#else
             return std::filesystem::is_regular_file(path);
+#endif
         }
         catch (const std::exception& e) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error checking file existence %s: %s", path.c_str(), e.what());
@@ -72,20 +217,14 @@ namespace FileManager {
 
     bool dirExists(const std::string& path) {
         try {
+#if defined(__ANDROID__)
+            return callFdExistsJNI(path);
+#else
             return std::filesystem::is_directory(path);
+#endif
         }
         catch (const std::exception& e) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error checking directory existence %s: %s", path.c_str(), e.what());
-            return false;
-        }
-    }
-
-    bool createDir(const std::string& path) {
-        try {
-            return std::filesystem::create_directories(path);
-        }
-        catch (const std::exception& e) {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error creating directory %s: %s", path.c_str(), e.what());
             return false;
         }
     }
@@ -171,11 +310,6 @@ namespace FileManager {
         std::map<std::string, std::string> result;
         std::string path = joinPath(gamePath.string(), LOCALIZATION_FILE);
 
-        if (!fileExists(path)) {
-            createDefaultLocalizationFile();
-            return result;
-        }
-
         for (const auto& line : readTextFile(path)) {
             size_t pos = line.find('=');
             if (pos == std::string::npos) continue;
@@ -197,38 +331,6 @@ namespace FileManager {
         }
 
         return result;
-    }
-
-    bool createDefaultLocalizationFile() {
-        std::string path = joinPath(gamePath.string(), LOCALIZATION_FILE);
-        if (fileExists(path)) {
-            return true;  // File already exists
-        }
-
-        std::vector<std::string> lines;
-        lines.push_back("# SENSE: The Game Localization File");
-        lines.push_back("# Use KEY=\"value\" format to override default text");
-        lines.push_back("# Leave KEY= empty or \"\" to use default text");
-        lines.push_back("# If KEY= is not found, default settings are applied");
-        lines.push_back("# Supported escape sequences:");
-        lines.push_back("#   \\n  - newline");
-        lines.push_back("#   \\t  - tab (4 spaces)");
-        lines.push_back("#   \\\"  - double quote");
-        lines.push_back("#   \\\\  - backslash");
-        lines.push_back("# Any unknown escape sequence after \\ will be written as-is");
-        lines.push_back("");
-
-
-        for (const auto& entry : LocalizationList) {
-            const std::string& key = entry.first;
-            lines.push_back(key + "=");
-        }
-
-        if (writeTextFile(path, lines)) {
-            SDL_Log("Created localization config file: %s", path.c_str());
-            return true;
-        }
-        return false;
     }
 
     // Custom font
@@ -268,17 +370,17 @@ namespace FileManager {
                     }
                 }
             }
-            // FONT_ANOTHER_TEXT_SIZE=...
-            else if (line.find("FONT_ANOTHER_TEXT_SIZE=") == 0) {
-                std::string sizeStr = extractValue(line.substr(23));
+            // OTHER_TEXT_FONT_SIZE=...
+            else if (line.find("OTHER_TEXT_FONT_SIZE=") == 0) {
+                std::string sizeStr = extractValue(line.substr(21));
                 if (!sizeStr.empty() && std::all_of(sizeStr.begin(), sizeStr.end(), ::isdigit)) {
                     int size = std::stoi(sizeStr);
                     if (size > 0) {
                         auto it = std::find_if(FontList.begin(), FontList.end(),
-                            [](const auto& p) { return p.first == "FONT_ANOTHER_TEXT_SIZE"; });
+                            [](const auto& p) { return p.first == "OTHER_TEXT_FONT_SIZE"; });
                         if (it != FontList.end()) {
                             it->second = size;
-                            SDL_Log("Using custom FONT_ANOTHER_TEXT_SIZE: %d", size);
+                            SDL_Log("Using custom OTHER_TEXT_FONT_SIZE: %d", size);
                         }
                     }
                 }
@@ -290,11 +392,6 @@ namespace FileManager {
 
     std::string loadCustomFontPath() {
         std::string configPath = joinPath(gamePath.string(), FONT_FILE);
-
-        if (!fileExists(configPath)) {
-            createDefaultFontFile();
-            return "";
-        }
 
         auto lines = readTextFile(configPath);
         for (const auto& line : lines) {
@@ -319,40 +416,6 @@ namespace FileManager {
         }
 
         return "";
-    }
-
-    bool createDefaultFontFile() {
-        std::string path = joinPath(gamePath.string(), FONT_FILE);
-        if (fileExists(path)) {
-            return true;  // File already exists
-        }
-
-        std::vector<std::string> lines = {
-            "# SENSE: The Game Font File",
-            "# Use FONT=\"./path/to/font.ttf\" or FONT=\"font.otf\" to use a custom font",
-            "# Leave FONT empty (FONT="" or FONT=) to use the default font",
-            "# If the font is not found, the default font will be used",
-            "# If FONT= is not found, default settings are applied",
-            "FONT=\"\"",
-            "",
-            "# Leave FONT_SIZE= to use the default size",
-            "# If FONT_SIZE is not set, the default size is 24",
-            "# FONT_SIZE must contain only digits (e.g. FONT_SIZE=32)",
-            "# If FONT_SIZE= is not found, default settings are applied",
-            "FONT_SIZE=",
-            "",
-            "# Leave FONT_ANOTHER_TEXT_SIZE= to use the default size",
-            "# If FONT_ANOTHER_TEXT_SIZE is not set, the default size is 48",
-            "# FONT_ANOTHER_TEXT_SIZE must contain only digits (e.g. FONT_ANOTHER_TEXT_SIZE=56)",
-            "# If FONT_ANOTHER_TEXT_SIZE= is not found, default settings are applied",
-            "FONT_ANOTHER_TEXT_SIZE="
-        };
-
-        if (writeTextFile(path, lines)) {
-            SDL_Log("Created font config file: %s", path.c_str());
-            return true;
-        }
-        return false;
     }
 
     // Decor assets
@@ -383,50 +446,6 @@ namespace FileManager {
         }
 
         return assets;
-    }
-
-    bool createDecorDirectory() {
-        const std::string dirPath = joinPath(gamePath.string(), DECOR_DIR);
-        const std::string configPath = joinPath(gamePath.string(), DECOR_CFG);
-
-        bool success = true;
-
-        // Create directory if it doesn't exist
-        if (!dirExists(dirPath)) {
-            if (createDir(dirPath)) {
-                SDL_Log("Created decor directory: %s", dirPath.c_str());
-            }
-            else {
-                success = false;
-            }
-        }
-
-        // Create config file if it doesn't exist
-        if (!fileExists(configPath)) {
-            std::vector<std::string> lines = {
-                "# SENSE: The Game Decor Configuration",
-                "# Use NAME=true/false to enable/disable decor assets",
-                "# If no value is set, the texture will not be displayed",
-                "# Put custom .png files in the decor directory to override standard assets",
-                "# You can also override a standard .png by giving it the same name",
-                "# If NAME= is not found, default settings are applied",
-                "",
-                "# Standard decor assets:"
-            };
-
-            for (const auto& entry : StandartDecorList) {
-                lines.push_back(entry.first + "=true");
-            }
-
-            if (writeTextFile(configPath, lines)) {
-                SDL_Log("Created decor config file: %s", configPath.c_str());
-            }
-            else {
-                success = false;
-            }
-        }
-
-        return success;
     }
 
     void updateOrAddLine(std::vector<std::string>& lines,

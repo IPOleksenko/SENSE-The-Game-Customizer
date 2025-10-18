@@ -4,9 +4,6 @@
     android:versionName="1.0">
 
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-      android:maxSdkVersion="28" />
-  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
   <queries>
     <package android:name="com.ipoleksenko.sense" />
@@ -21,8 +18,7 @@
     <activity
         android:name=".MainActivity"
         android:exported="true"
-        android:configChanges="screenSize|smallestScreenSize|orientation"
-        android:screenOrientation="portrait">
+        android:configChanges="screenSize|smallestScreenSize|orientation" >
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
