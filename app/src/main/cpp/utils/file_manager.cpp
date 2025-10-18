@@ -201,30 +201,30 @@ namespace FileManager {
 #endif
     }
 
-    bool fileExists(const std::string& path) {
+    bool fileExists(const std::string& filePath) {
         try {
 #if defined(__ANDROID__)
-            return callFdExistsJNI(path);
+            return callFdExistsJNI(filePath);
 #else
-            return std::filesystem::is_regular_file(path);
+            return std::filesystem::is_regular_file(gamePath/filePath);
 #endif
         }
         catch (const std::exception& e) {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error checking file existence %s: %s", path.c_str(), e.what());
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error checking file existence %s: %s", filePath.c_str(), e.what());
             return false;
         }
     }
 
-    bool dirExists(const std::string& path) {
+    bool dirExists(const std::string& dirPath) {
         try {
 #if defined(__ANDROID__)
-            return callFdExistsJNI(path);
+            return callFdExistsJNI(dirPath);
 #else
-            return std::filesystem::is_directory(path);
+            return std::filesystem::is_directory(gamePath/dirPath);
 #endif
         }
         catch (const std::exception& e) {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error checking directory existence %s: %s", path.c_str(), e.what());
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error checking directory existence %s: %s", dirPath.c_str(), e.what());
             return false;
         }
     }
@@ -305,10 +305,59 @@ namespace FileManager {
         return output;
     }
 
+    bool createFile(const std::string& fileName) {
+#if defined(__ANDROID__)
+        JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+        jobject activity = (jobject)SDL_AndroidGetActivity();
+
+        if (!env || !activity) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "JNI environment or activity is null");
+            return false;
+        }
+
+        jclass fileManagerClass = env->FindClass("com/ipoleksenko/sense/customizer/FileManager");
+        if (!fileManagerClass) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "FileManager class not found");
+            return false;
+        }
+
+        jmethodID createFileMethod = env->GetStaticMethodID(
+                fileManagerClass,
+                "createFile",
+                "(Landroid/content/Context;Ljava/lang/String;)Z"
+        );
+        if (!createFileMethod) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "createFile method not found in FileManager");
+            env->DeleteLocalRef(fileManagerClass);
+            return false;
+        }
+
+        jstring jFileName = env->NewStringUTF(fileName.c_str());
+
+        jboolean result = env->CallStaticBooleanMethod(fileManagerClass, createFileMethod, activity, jFileName);
+
+        env->DeleteLocalRef(jFileName);
+        env->DeleteLocalRef(fileManagerClass);
+
+        return result == JNI_TRUE;
+#else
+    try {
+        return std::filesystem::create_directories(gamePath);
+    } catch (const std::exception& e) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error creating directory %s: %s", gamePath.c_str(), e.what());
+        return false;
+    }
+#endif
+    }
+
     // Localization
     std::map<std::string, std::string> loadLocalization() {
         std::map<std::string, std::string> result;
         std::string path = joinPath(gamePath.string(), LOCALIZATION_FILE);
+
+        if (!fileExists(LOCALIZATION_FILE)) {
+            createFile(LOCALIZATION_FILE);
+        }
 
         for (const auto& line : readTextFile(path)) {
             size_t pos = line.find('=');
@@ -337,6 +386,10 @@ namespace FileManager {
     bool loadCustomFontSize() {
         std::string configPath = joinPath(gamePath.string(), FONT_FILE);
         auto lines = readTextFile(configPath);
+
+        if (!fileExists(FONT_FILE)) {
+            createFile(FONT_FILE);
+        }
 
         if (lines.empty()) return false;
 
@@ -393,6 +446,10 @@ namespace FileManager {
     std::string loadCustomFontPath() {
         std::string configPath = joinPath(gamePath.string(), FONT_FILE);
 
+        if (!fileExists(FONT_FILE)) {
+            createFile(FONT_FILE);
+        }
+
         auto lines = readTextFile(configPath);
         for (const auto& line : lines) {
             if (line.find("FONT=") == 0) {
@@ -422,6 +479,10 @@ namespace FileManager {
     std::vector<DecorAsset> loadDecorAssets() {
         std::vector<DecorAsset> assets;
         std::string configPath = joinPath(gamePath.string(), DECOR_CFG);
+
+        if (!fileExists(DECOR_CFG)) {
+            createFile(DECOR_CFG);
+        }
 
         // Read configuration
         std::map<std::string, bool> config;

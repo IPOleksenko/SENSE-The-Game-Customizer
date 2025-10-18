@@ -18,11 +18,9 @@ bool createDir(const std::string& path);
 
 // Localization
 std::map<std::string, std::string> loadLocalization();
-bool createDefaultLocalizationFile();
 
 // Custom font
 bool loadCustomFontSize();
-bool createDefaultFontFile();
 
 // Decor assets
 struct DecorAsset {
@@ -32,7 +30,6 @@ struct DecorAsset {
 };
 
 std::vector<DecorAsset> loadDecorAssets();
-bool createDecorDirectory();
 
 // Helper functions
 std::string extractQuotedValue(const std::string& line);
