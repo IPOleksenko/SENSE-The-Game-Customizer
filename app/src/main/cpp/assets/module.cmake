@@ -38,8 +38,17 @@ target_include_directories(
 
 target_link_libraries(
     ${MODULE_TARGET} PUBLIC
+        SDL2::SDL2
+        SDL2_image::SDL2_image
         incbin
 )
+
+if(NOT ANDROID)
+    target_link_libraries(
+        ${MODULE_TARGET} PUBLIC
+        tinyfiledialogs
+    )
+endif()
 
 if(MSVC)
     add_dependencies(

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <assets/data.hpp>
 #include <SDL.h>
 #include <string>
 #include <vector>
@@ -36,4 +37,6 @@ private:
     static const SDL_Point s_windowPos;
     static const void launchGame();
 
+    static void AddCustomDecorFromDialog(SDL_Renderer* renderer);
+    static void DrawAddCustomDecorTab(SDL_Renderer* renderer, const std::filesystem::path& gamePath);
 };

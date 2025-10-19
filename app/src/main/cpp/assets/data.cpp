@@ -43,3 +43,5 @@ std::vector<std::pair<std::string, bool>> StandartDecorList = {
     {"smallrock2", true},
     {"smallrock3", true} 
 };
+
+std::vector<CustomeDecorationList> CustomDecorList;

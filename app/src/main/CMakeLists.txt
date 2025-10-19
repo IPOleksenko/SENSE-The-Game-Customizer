@@ -15,6 +15,7 @@ include(incbin_import.cmake)
 include(imgui_import.cmake)
 if(NOT ANDROID)
     include(steamSDK_import.cmake)
+    include(tinyfiledialogs_import.cmake)
 endif()
 
 include(${SOURCE_DIR}/assets/module.cmake)
@@ -64,6 +65,7 @@ if (NOT ANDROID)
     target_link_libraries(${PROJECT_NAME}
         PRIVATE
             steam_api
+            tinyfiledialogs
     )
 endif()
 

@@ -614,4 +614,88 @@ namespace FileManager {
         SDL_Log("All config files updated successfully.");
     }
 
+    void processCustomDecorations(const std::filesystem::path& gamePath) {
+        const auto decorDir = gamePath / "decor";
+
+        SDL_Log("Scanning decor folder: %s", decorDir.string().c_str());
+
+        if (!std::filesystem::exists(decorDir)) {
+            std::filesystem::create_directories(decorDir);
+            SDL_Log("Created decor directory: %s", decorDir.string().c_str());
+        }
+
+        SDL_Log("CustomDecorList size: %d", (int)CustomDecorList.size());
+
+        for (auto& deco : CustomDecorList) {
+            std::string ops;
+            for (auto op : deco.operations) {
+                switch (op) {
+                case CustomeDecorationOperationEnum::Add: ops += "Add "; break;
+                case CustomeDecorationOperationEnum::Remove: ops += "Remove "; break;
+                case CustomeDecorationOperationEnum::Rename: ops += "Rename "; break;
+                case CustomeDecorationOperationEnum::None: ops += "None "; break;
+                }
+            }
+            SDL_Log("🔹 Decor: %s | path=%s | ops=[%s]",
+                deco.name.c_str(), deco.path.string().c_str(), ops.c_str());
+
+            if (deco.hasOperation(CustomeDecorationOperationEnum::Add)) {
+                try {
+                    auto destPath = decorDir / (deco.name + ".png");
+                    std::filesystem::copy_file(deco.path, destPath, std::filesystem::copy_options::overwrite_existing);
+                    deco.path = destPath;
+                    deco.operations = { CustomeDecorationOperationEnum::None };
+                    SDL_Log("Added custom decor: %s", destPath.string().c_str());
+                }
+                catch (const std::exception& e) {
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to add decor: %s", e.what());
+                }
+            }
+
+            else if (deco.hasOperation(CustomeDecorationOperationEnum::Remove)) {
+                try {
+                    if (std::filesystem::exists(deco.path)) {
+                        std::filesystem::remove(deco.path);
+                        SDL_Log("Removed custom decor: %s", deco.path.string().c_str());
+                    }
+                    deco.operations = { CustomeDecorationOperationEnum::Remove };
+                }
+                catch (const std::exception& e) {
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to remove decor: %s", e.what());
+                }
+            }
+
+            else if (deco.hasOperation(CustomeDecorationOperationEnum::Rename)) {
+                try {
+                    auto newPath = decorDir / (deco.name + ".png");
+                    if (std::filesystem::exists(deco.path)) {
+                        std::filesystem::rename(deco.path, newPath);
+                        deco.path = newPath;
+                        SDL_Log("Renamed decor to: %s", newPath.string().c_str());
+                    }
+                    deco.operations = { CustomeDecorationOperationEnum::None };
+                }
+                catch (const std::exception& e) {
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to rename decor: %s", e.what());
+                }
+            }
+        }
+
+        auto before = CustomDecorList.size();
+        CustomDecorList.erase(
+            std::remove_if(CustomDecorList.begin(), CustomDecorList.end(),
+                [](const CustomeDecorationList& d) {
+                    return d.hasOperation(CustomeDecorationOperationEnum::Remove);
+                }),
+            CustomDecorList.end()
+        );
+        auto after = CustomDecorList.size();
+
+        if (after != before) {
+            SDL_Log("Removed %zu decorations from list (now %zu left).", before - after, after);
+        }
+
+        SDL_Log("Custom decorations processed.");
+    }
+
 } // namespace FileManager

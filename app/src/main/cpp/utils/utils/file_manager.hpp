@@ -40,5 +40,6 @@ std::string unescapeString(const std::string& input);
 
 void updateOrAddLine(std::vector<std::string>& lines, const std::string& key, const std::string& newValue, bool quoted = false);
 void updateAllConfigFiles() ;
+void processCustomDecorations(const std::filesystem::path& gamePath);
 
 } // namespace FileManager

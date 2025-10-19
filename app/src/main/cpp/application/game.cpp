@@ -20,10 +20,9 @@
 #include <array>
 #include <filesystem>
 
-#if defined(__ANDROID__)
-
-#else
+#if !defined(__ANDROID__)
 #include <steam/steam_api.h>
+#include <tinyfiledialogs.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -211,6 +210,209 @@ const void Game::launchGame() {
 
     SDL_Log("Launching Steam game: %s", steamCommand.c_str());
 #endif
+}
+
+void Game::AddCustomDecorFromDialog(SDL_Renderer* renderer)
+{
+    const char* filters[] = { "*.png" };
+    const char* selectedPath = tinyfd_openFileDialog(
+        "Select PNG image",
+        "",
+        1,
+        filters,
+        "PNG images",
+        0 // 0 = single file, 1 = allow multiple selection
+    );
+
+    if (!selectedPath)
+    {
+        SDL_Log("No file selected");
+        return;
+    }
+
+    SDL_Log("Selected file: %s", selectedPath);
+
+    SDL_Texture* tex = IMG_LoadTexture(renderer, selectedPath);
+    if (!tex)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture: %s", IMG_GetError());
+        return;
+    }
+
+    CustomeDecorationList item;
+    item.name = std::filesystem::path(selectedPath).stem().string();
+    item.path = selectedPath;
+    item.texture = tex;
+    item.operations.push_back(CustomeDecorationOperationEnum::Add);
+
+    item.ensureUniqueName(CustomDecorList);
+
+    CustomDecorList.push_back(std::move(item));
+
+    SDL_Log("Added custom decor: %s", selectedPath);
+}
+
+void Game::DrawAddCustomDecorTab(SDL_Renderer* renderer, const std::filesystem::path& gamePath)
+{
+    if (gamePath.empty() || !std::filesystem::exists(gamePath)) {
+        ImGui::TextColored(ImVec4(1, 0.2f, 0.2f, 1), "Game path not found");
+        return;
+    }
+
+    static std::filesystem::path s_loadedPath;
+    if (s_loadedPath != gamePath) {
+        for (auto& it : CustomDecorList) {
+            if (it.texture) SDL_DestroyTexture(it.texture);
+        }
+        CustomDecorList.clear();
+
+        std::filesystem::path decorPath = gamePath / "Decor";
+        if (!std::filesystem::exists(decorPath))
+            decorPath = gamePath;
+
+        SDL_Log("Scanning decor folder: %s", decorPath.string().c_str());
+
+        for (auto& entry : std::filesystem::directory_iterator(decorPath)) {
+            if (!entry.is_regular_file()) continue;
+            std::string ext = entry.path().extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+            if (ext == ".png") {
+                SDL_Texture* tex = IMG_LoadTexture(renderer, entry.path().string().c_str());
+                if (!tex) continue;
+
+                CustomeDecorationList item;
+                item.name = entry.path().stem().string();
+                item.path = entry.path();
+                item.texture = tex;
+                item.operations.push_back(CustomeDecorationOperationEnum::None);
+                CustomDecorList.push_back(std::move(item));
+            }
+        }
+
+        s_loadedPath = gamePath;
+    }
+
+    const char* buttonText = "Add PNG for add assets";
+    ImVec2 textSize = ImGui::CalcTextSize(buttonText);
+    ImVec2 buttonSize(textSize.x + 80.0f, 80.0f);
+
+    float windowWidth = ImGui::GetWindowSize().x;
+    float cursorX = (windowWidth - buttonSize.x) * 0.5f;
+    if (cursorX < 0.0f) cursorX = 0.0f;
+    ImGui::SetCursorPosX(cursorX);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 25.0f);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.40f, 0.90f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.50f, 1.00f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.15f, 0.35f, 0.80f, 1.00f));
+
+    bool addClicked = ImGui::Button(buttonText, buttonSize);
+
+    ImGui::PopStyleColor(3);
+    ImGui::PopStyleVar();
+
+    if (addClicked) {
+        AddCustomDecorFromDialog(renderer);
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    ImGui::Text("Folder: %s", gamePath.string().c_str());
+    ImGui::Text("Loaded items: %d", (int)CustomDecorList.size());
+    ImGui::Spacing();
+
+    if (CustomDecorList.empty()) {
+        ImGui::TextDisabled("No PNG assets found.");
+        return;
+    }
+
+    int idx = 0;
+    for (size_t i = 0; i < CustomDecorList.size(); ++i) {
+        auto& item = CustomDecorList[i];
+        ImGui::PushID(idx++);
+
+        bool isRemoved = item.hasOperation(CustomeDecorationOperationEnum::Remove);
+        bool isNew = item.hasOperation(CustomeDecorationOperationEnum::Add);
+
+        if (isRemoved) {
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Name:");
+        ImGui::SameLine();
+
+        char buf[1024];
+        std::snprintf(buf, sizeof(buf), "%s", item.name.c_str());
+        if (ImGui::InputText(("##name" + std::to_string(idx)).c_str(), buf, sizeof(buf))) {
+            if (item.name != buf) {
+                item.name = buf;
+                item.ensureUniqueName(CustomDecorList);
+                item.addOperation(CustomeDecorationOperationEnum::Rename);
+            }
+
+        }
+
+        ImGui::Text("Path: %s", item.path.string().c_str());
+
+        if (item.texture) {
+            int texW = 0, texH = 0;
+            SDL_QueryTexture(item.texture, nullptr, nullptr, &texW, &texH);
+            float maxWidth = 256.0f;
+            float scale = (texW > 0) ? ((texW > maxWidth) ? (maxWidth / (float)texW) : 1.0f) : 1.0f;
+            ImVec2 imageSize(texW * scale, texH * scale);
+            ImGui::Image((ImTextureID)(intptr_t)item.texture, imageSize);
+        }
+
+        ImGui::SameLine();
+
+        if (isRemoved) {
+            if (ImGui::Button(("Restore##" + std::to_string(idx)).c_str())) {
+                item.restoreFromRemove();
+                SDL_Log("Restored item: %s", item.name.c_str());
+
+            }
+        }
+        else {
+            const char* btnLabel = isNew ? "Cancel##" : "Remove##";
+            if (ImGui::Button((std::string(btnLabel) + std::to_string(idx)).c_str())) {
+                if (isNew) {
+                    if (item.texture) SDL_DestroyTexture(item.texture);
+                    CustomDecorList.erase(CustomDecorList.begin() + i);
+                    SDL_Log("Canceled new item: %s", item.name.c_str());
+                    ImGui::PopID();
+                    break;
+                }
+                else {
+                    item.addOperation(CustomeDecorationOperationEnum::Remove);
+                    SDL_Log("Marked for removal: %s", item.name.c_str());
+                }
+            }
+        }
+
+        if (!item.operations.empty()) {
+            ImGui::Text("Operations:");
+            for (auto op : item.operations) {
+                const char* label = "";
+                switch (op) {
+                case CustomeDecorationOperationEnum::None:   label = "None"; break;
+                case CustomeDecorationOperationEnum::Add:    label = "Add"; break;
+                case CustomeDecorationOperationEnum::Remove: label = "Remove"; break;
+                case CustomeDecorationOperationEnum::Rename: label = "Rename"; break;
+                }
+                ImGui::SameLine();
+                ImGui::Text("[%s]", label);
+            }
+        }
+
+        if (isRemoved) {
+            ImGui::PopStyleVar();
+        }
+
+        ImGui::PopID();
+    }
 }
 
 
@@ -405,6 +607,7 @@ void Game::play(Window& window, Renderer& renderer) {
                 }
 
                 if (ImGui::BeginTabItem("Add Custom Decor")) {
+                    DrawAddCustomDecorTab(renderer.getSdlRenderer(), gamePath);
                     ImGui::EndTabItem();
                 }
 
@@ -453,6 +656,7 @@ void Game::play(Window& window, Renderer& renderer) {
             ImGui::SetCursorPos(ImVec2(startX, startY));
             if (ImGui::Button("Save", ImVec2(buttonWidth, buttonHeight))) {
                 FileManager::updateAllConfigFiles();
+                FileManager::processCustomDecorations(gamePath);
             }
 
             ImGui::SetCursorPos(ImVec2(startX, startY + buttonHeight + spacing));
@@ -463,6 +667,7 @@ void Game::play(Window& window, Renderer& renderer) {
             ImGui::SetCursorPos(ImVec2(startX, startY + (buttonHeight + spacing) * 2));
             if (ImGui::Button("Save and Play", ImVec2(buttonWidth, buttonHeight))) {
                 FileManager::updateAllConfigFiles();
+                FileManager::processCustomDecorations(gamePath);
                 launchGame();
             }
         }
