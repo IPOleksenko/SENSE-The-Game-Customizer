@@ -85,3 +85,50 @@ endif()
 if(UNIX)
     include(install_launcher.cmake)
 endif()
+
+if(NOT ANDROID)
+    if(NOT DEFINED STEAM_SDK_DIR)
+        set(STEAM_SDK_DIR "${PROJECT_ROOT}/thirdparty/steamworks_sdk")
+    endif()
+
+    if(WIN32)
+        # Windows
+        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            set(STEAM_ARCH "win64")
+            set(STEAM_API_LIB "${STEAM_SDK_DIR}/redistributable_bin/${STEAM_ARCH}/steam_api64.dll")
+        else()
+            set(STEAM_ARCH "win32")
+            set(STEAM_API_LIB "${STEAM_SDK_DIR}/redistributable_bin/steam_api.dll")
+        endif()
+    elseif(APPLE)
+        # macOS
+        set(STEAM_ARCH "osx")
+        set(STEAM_API_LIB "${STEAM_SDK_DIR}/redistributable_bin/${STEAM_ARCH}/libsteam_api.dylib")
+    elseif(UNIX)
+        # Linux
+        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            set(STEAM_ARCH "linux64")
+        else()
+            set(STEAM_ARCH "linux32")
+        endif()
+        set(STEAM_API_LIB "${STEAM_SDK_DIR}/redistributable_bin/${STEAM_ARCH}/libsteam_api.so")
+    endif()
+
+    # Verify existence
+    if(NOT EXISTS "${STEAM_API_LIB}")
+        message(WARNING "Steam API binary not found for ${STEAM_ARCH} at ${STEAM_API_LIB}")
+    else()
+        message(STATUS "Using Steam API: ${STEAM_API_LIB}")
+
+        # Copy to build directory
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${STEAM_API_LIB}"
+                "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+        )
+
+        install(FILES "${STEAM_API_LIB}"
+                DESTINATION ${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}
+        )
+    endif()
+endif()
