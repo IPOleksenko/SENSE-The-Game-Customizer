@@ -5,6 +5,7 @@
 #include <string>
 #include <variant>
 #include <filesystem>
+#include <algorithm>
 #include <SDL_image.h>
 
 enum class Folders {
