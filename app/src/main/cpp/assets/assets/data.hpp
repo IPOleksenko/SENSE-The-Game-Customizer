@@ -196,5 +196,4 @@ struct CustomeDecorationList {
 
 };
 
-
 extern std::vector<CustomeDecorationList> CustomDecorList;

@@ -8,7 +8,6 @@
 
 class Window;
 class Renderer;
-class AudioManager;
 class Text;
 
 class Game {

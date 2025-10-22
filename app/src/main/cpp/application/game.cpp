@@ -20,7 +20,9 @@
 #include <array>
 #include <filesystem>
 
-#if !defined(__ANDROID__)
+#if defined(__ANDROID__)
+#include <jni.h>
+#else
 #include <steam/steam_api.h>
 #include <tinyfiledialogs.h>
 
@@ -42,6 +44,92 @@ const SDL_Point Game::s_windowPos = {
 };
 
 std::vector<SDL_GameController*> Game::controllers;
+
+#if defined(__ANDROID__)
+static std::vector<CustomeDecorationList> gPendingDecorations;
+static std::mutex gPendingMutex;
+
+static std::unordered_map<std::string, std::vector<unsigned char>> gImageCache;
+
+void ProcessPendingDecorations(SDL_Renderer* renderer)
+{
+    std::vector<CustomeDecorationList> localQueue;
+
+    {
+        std::lock_guard<std::mutex> lock(gPendingMutex);
+        if (gPendingDecorations.empty()) return;
+        localQueue.swap(gPendingDecorations);
+    }
+
+    for (auto& deco : localQueue)
+    {
+        auto it = gImageCache.find(deco.path.string());
+        if (it == gImageCache.end()) {
+            SDL_Log("No cached image bytes for: %s", deco.path.c_str());
+            continue;
+        }
+
+        const auto& bytes = it->second;
+
+        SDL_RWops* rw = SDL_RWFromConstMem(bytes.data(), bytes.size());
+        if (!rw) {
+            SDL_Log("SDL_RWFromConstMem failed for %s: %s", deco.path.c_str(), SDL_GetError());
+            continue;
+        }
+
+        SDL_Surface* surface = IMG_Load_RW(rw, 1);
+        if (!surface) {
+            SDL_Log("IMG_Load_RW failed for %s: %s", deco.path.c_str(), IMG_GetError());
+            continue;
+        }
+
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        SDL_FreeSurface(surface);
+
+        if (!texture) {
+            SDL_Log("SDL_CreateTextureFromSurface failed for %s", deco.path.c_str());
+            continue;
+        }
+
+        deco.texture = texture;
+        deco.ensureUniqueName(CustomDecorList);
+        CustomDecorList.push_back(std::move(deco));
+
+        SDL_Log("Decor texture added: %s", deco.path.c_str());
+
+        gImageCache.erase(it);
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_ipoleksenko_sense_customizer_FileManager_nativeOnImagePicked(
+        JNIEnv* env, jclass, jstring jPath, jbyteArray byteArray)
+{
+    if (!byteArray || !jPath) return;
+
+    const char* rawPath = env->GetStringUTFChars(jPath, nullptr);
+    std::string path(rawPath);
+    env->ReleaseStringUTFChars(jPath, rawPath);
+
+    jsize len = env->GetArrayLength(byteArray);
+    std::vector<unsigned char> bytes(len);
+    env->GetByteArrayRegion(byteArray, 0, len, reinterpret_cast<jbyte*>(bytes.data()));
+
+    CustomeDecorationList item;
+    item.path = path;
+    item.name = std::filesystem::path(path).stem().string();
+    item.operations.push_back(CustomeDecorationOperationEnum::Add);
+
+    {
+        std::lock_guard<std::mutex> lock(gPendingMutex);
+        gPendingDecorations.push_back(std::move(item));
+        gImageCache[path] = std::move(bytes);
+    }
+
+    SDL_Log("Received image %s (%d bytes) from Java", path.c_str(), (int)len);
+}
+#endif
 
 Game::Game() :
     m_isInit(false)
@@ -214,6 +302,31 @@ const void Game::launchGame() {
 
 void Game::AddCustomDecorFromDialog(SDL_Renderer* renderer)
 {
+#if defined(__ANDROID__)
+    JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+    if (!env) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to get JNI environment");
+        return;
+    }
+
+    jclass fileManagerClass = env->FindClass("com/ipoleksenko/sense/customizer/FileManager");
+    if (!fileManagerClass) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find class: com/ipoleksenko/sense/customizer/FileManager");
+        return;
+    }
+
+    jmethodID pickImageMethod = env->GetStaticMethodID(fileManagerClass, "pickImageFromGallery", "()V");
+    if (!pickImageMethod) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find static method: pickImageFromGallery()V");
+        env->DeleteLocalRef(fileManagerClass);
+        return;
+    }
+
+    env->CallStaticVoidMethod(fileManagerClass, pickImageMethod);
+    SDL_Log("Called FileManager.pickImageFromGallery() successfully");
+
+    env->DeleteLocalRef(fileManagerClass);
+#else
     const char* filters[] = { "*.png" };
     const char* selectedPath = tinyfd_openFileDialog(
         "Select PNG image",
@@ -250,6 +363,7 @@ void Game::AddCustomDecorFromDialog(SDL_Renderer* renderer)
     CustomDecorList.push_back(std::move(item));
 
     SDL_Log("Added custom decor: %s", selectedPath);
+#endif
 }
 
 void Game::DrawAddCustomDecorTab(SDL_Renderer* renderer, const std::filesystem::path& gamePath)
@@ -266,7 +380,7 @@ void Game::DrawAddCustomDecorTab(SDL_Renderer* renderer, const std::filesystem::
         }
         CustomDecorList.clear();
 
-        std::filesystem::path decorPath = gamePath / "Decor";
+        std::filesystem::path decorPath = gamePath / "decor";
         if (!std::filesystem::exists(decorPath))
             decorPath = gamePath;
 
@@ -355,7 +469,7 @@ void Game::DrawAddCustomDecorTab(SDL_Renderer* renderer, const std::filesystem::
 
         }
 
-        ImGui::Text("Path: %s", item.path.string().c_str());
+        ImGui::TextWrapped("Path: %s", item.path.string().c_str());
 
         if (item.texture) {
             int texW = 0, texH = 0;
@@ -676,7 +790,9 @@ void Game::play(Window& window, Renderer& renderer) {
 
     while (isRunning) {
         ProcessSDLEvents(isRunning, controllers);
-
+#if defined(__ANDROID__)
+        ProcessPendingDecorations(renderer.getSdlRenderer());
+#endif
         if (!controllers.empty())
             UpdateGamepadNavigation(ImGui::GetIO(), controllers[0]);
 

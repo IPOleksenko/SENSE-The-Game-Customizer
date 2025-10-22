@@ -616,13 +616,36 @@ namespace FileManager {
 
     void processCustomDecorations(const std::filesystem::path& gamePath) {
         const auto decorDir = gamePath / "decor";
-
         SDL_Log("Scanning decor folder: %s", decorDir.string().c_str());
 
-        if (!std::filesystem::exists(decorDir)) {
-            std::filesystem::create_directories(decorDir);
-            SDL_Log("Created decor directory: %s", decorDir.string().c_str());
-        }
+#if defined(__ANDROID__)
+        JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+        jobject activity = (jobject)SDL_AndroidGetActivity();
+        jclass fileManagerClass = env->FindClass("com/ipoleksenko/sense/customizer/FileManager");
+
+        jmethodID copyFileMethod = env->GetStaticMethodID(
+                fileManagerClass,
+                "copyFile",
+                "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Z"
+        );
+
+        jmethodID deleteDecorFileMethod = env->GetStaticMethodID(
+                fileManagerClass,
+                "deleteDecorFile",
+                "(Landroid/content/Context;Ljava/lang/String;)Z"
+        );
+
+        jmethodID renameDecorFileMethod = env->GetStaticMethodID(
+                fileManagerClass,
+                "renameDecorFile",
+                "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Z"
+                );
+#else
+    if (!std::filesystem::exists(decorDir)) {
+        std::filesystem::create_directories(decorDir);
+        SDL_Log("Created decor directory: %s", decorDir.string().c_str());
+    }
+#endif
 
         SDL_Log("CustomDecorList size: %d", (int)CustomDecorList.size());
 
@@ -630,64 +653,158 @@ namespace FileManager {
             std::string ops;
             for (auto op : deco.operations) {
                 switch (op) {
-                case CustomeDecorationOperationEnum::Add: ops += "Add "; break;
-                case CustomeDecorationOperationEnum::Remove: ops += "Remove "; break;
-                case CustomeDecorationOperationEnum::Rename: ops += "Rename "; break;
-                case CustomeDecorationOperationEnum::None: ops += "None "; break;
+                    case CustomeDecorationOperationEnum::Add: ops += "Add "; break;
+                    case CustomeDecorationOperationEnum::Remove: ops += "Remove "; break;
+                    case CustomeDecorationOperationEnum::Rename: ops += "Rename "; break;
+                    case CustomeDecorationOperationEnum::None: ops += "None "; break;
                 }
             }
             SDL_Log("🔹 Decor: %s | path=%s | ops=[%s]",
-                deco.name.c_str(), deco.path.string().c_str(), ops.c_str());
+                    deco.name.c_str(), deco.path.string().c_str(), ops.c_str());
 
+            // ---------- ADD ----------
             if (deco.hasOperation(CustomeDecorationOperationEnum::Add)) {
+#if defined(__ANDROID__)
                 try {
-                    auto destPath = decorDir / (deco.name + ".png");
-                    std::filesystem::copy_file(deco.path, destPath, std::filesystem::copy_options::overwrite_existing);
-                    deco.path = destPath;
+                    jstring jSourcePath = env->NewStringUTF(deco.path.string().c_str());
+                    jstring jTargetName = env->NewStringUTF((deco.name + ".png").c_str());
+
+                    jboolean result = env->CallStaticBooleanMethod(
+                            fileManagerClass,
+                            copyFileMethod,
+                            activity,
+                            jSourcePath,
+                            jTargetName
+                    );
+
+                    env->DeleteLocalRef(jSourcePath);
+                    env->DeleteLocalRef(jTargetName);
+
                     deco.operations = { CustomeDecorationOperationEnum::None };
-                    SDL_Log("Added custom decor: %s", destPath.string().c_str());
+                } catch (...) {
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                                 "Exception while calling Java copyFile() for decor: %s",
+                                 deco.name.c_str());
                 }
-                catch (const std::exception& e) {
-                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to add decor: %s", e.what());
-                }
+#else
+                try {
+                auto destPath = decorDir / (deco.name + ".png");
+                std::filesystem::copy_file(deco.path, destPath,
+                    std::filesystem::copy_options::overwrite_existing);
+                deco.path = destPath;
+                deco.operations = { CustomeDecorationOperationEnum::None };
+                SDL_Log("Added custom decor: %s", destPath.string().c_str());
+            }
+            catch (const std::exception& e) {
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to add decor: %s", e.what());
+            }
+#endif
             }
 
+                // ---------- REMOVE ----------
             else if (deco.hasOperation(CustomeDecorationOperationEnum::Remove)) {
+#if defined(__ANDROID__)
                 try {
-                    if (std::filesystem::exists(deco.path)) {
-                        std::filesystem::remove(deco.path);
-                        SDL_Log("Removed custom decor: %s", deco.path.string().c_str());
+                    jstring jFilePath = env->NewStringUTF(deco.path.string().c_str());
+
+                    jboolean deleted = env->CallStaticBooleanMethod(
+                            fileManagerClass,
+                            deleteDecorFileMethod,
+                            activity,
+                            jFilePath
+                    );
+
+                    env->DeleteLocalRef(jFilePath);
+
+                    if (deleted == JNI_TRUE) {
+                        SDL_Log("Deleted decor file via Java: %s", deco.path.string().c_str());
+                    } else {
+                        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                                    "Failed to delete decor via Java: %s",
+                                    deco.path.string().c_str());
                     }
+
                     deco.operations = { CustomeDecorationOperationEnum::Remove };
+                } catch (...) {
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                                 "Exception while calling Java deleteDecorFile() for decor: %s",
+                                 deco.name.c_str());
                 }
-                catch (const std::exception& e) {
-                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to remove decor: %s", e.what());
+#else
+                try {
+                if (std::filesystem::exists(deco.path)) {
+                    std::filesystem::remove(deco.path);
+                    SDL_Log("🗑Removed custom decor: %s", deco.path.string().c_str());
                 }
+                deco.operations = { CustomeDecorationOperationEnum::Remove };
+            }
+            catch (const std::exception& e) {
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to remove decor: %s", e.what());
+            }
+#endif
             }
 
+                // ---------- RENAME ----------
             else if (deco.hasOperation(CustomeDecorationOperationEnum::Rename)) {
+#if defined(__ANDROID__)
                 try {
-                    auto newPath = decorDir / (deco.name + ".png");
-                    if (std::filesystem::exists(deco.path)) {
-                        std::filesystem::rename(deco.path, newPath);
-                        deco.path = newPath;
-                        SDL_Log("Renamed decor to: %s", newPath.string().c_str());
+                    jstring jOldFilePath = env->NewStringUTF(deco.path.string().c_str());
+                    jstring jNewFileName = env->NewStringUTF((deco.name + ".png").c_str());
+
+                    jboolean renamed = env->CallStaticBooleanMethod(
+                            fileManagerClass,
+                            renameDecorFileMethod,
+                            activity,
+                            jOldFilePath,
+                            jNewFileName
+                    );
+
+                    env->DeleteLocalRef(jOldFilePath);
+                    env->DeleteLocalRef(jNewFileName);
+
+                    if (renamed == JNI_TRUE) {
+                        deco.path = decorDir / (deco.name + ".png");
+                        SDL_Log("Renamed decor file via Java: %s", deco.name.c_str());
+                    } else {
+                        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                                    "Failed to rename decor file via Java: %s",
+                                    deco.name.c_str());
                     }
+
                     deco.operations = { CustomeDecorationOperationEnum::None };
+                } catch (...) {
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                                 "Exception while calling Java renameDecorFile() for decor: %s",
+                                 deco.name.c_str());
                 }
-                catch (const std::exception& e) {
-                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to rename decor: %s", e.what());
+#else
+                try {
+                auto newPath = decorDir / (deco.name + ".png");
+                if (std::filesystem::exists(deco.path)) {
+                    std::filesystem::rename(deco.path, newPath);
+                    deco.path = newPath;
+                    SDL_Log("Renamed decor to: %s", newPath.string().c_str());
                 }
+                deco.operations = { CustomeDecorationOperationEnum::None };
+            }
+            catch (const std::exception& e) {
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to rename decor: %s", e.what());
+            }
+#endif
             }
         }
 
+#if defined(__ANDROID__)
+        env->DeleteLocalRef(fileManagerClass);
+#endif
+
         auto before = CustomDecorList.size();
         CustomDecorList.erase(
-            std::remove_if(CustomDecorList.begin(), CustomDecorList.end(),
-                [](const CustomeDecorationList& d) {
-                    return d.hasOperation(CustomeDecorationOperationEnum::Remove);
-                }),
-            CustomDecorList.end()
+                std::remove_if(CustomDecorList.begin(), CustomDecorList.end(),
+                               [](const CustomeDecorationList& d) {
+                                   return d.hasOperation(CustomeDecorationOperationEnum::Remove);
+                               }),
+                CustomDecorList.end()
         );
         auto after = CustomDecorList.size();
 

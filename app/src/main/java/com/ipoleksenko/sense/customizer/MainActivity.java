@@ -1,6 +1,7 @@
 package com.ipoleksenko.sense.customizer;
 
 import android.Manifest;
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.StrictMode;
@@ -46,4 +47,11 @@ public class MainActivity extends SDLActivity {
         super.onDestroy();
         Log.d(TAG, "MainActivity destroy");
     }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        FileManager.onActivityResult(this, requestCode, resultCode, data);
+    }
+
 }

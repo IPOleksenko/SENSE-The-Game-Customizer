@@ -16,3 +16,4 @@ libsdl/
 local.properties
 debug/
 release/
+*.log
