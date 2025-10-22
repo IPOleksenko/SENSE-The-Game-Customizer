@@ -6,6 +6,12 @@ namespace fs = std::filesystem;
 FindGame::FindGame() = default;
 FindGame::~FindGame() = default;
 
+#include <jni.h>
+#include <SDL.h>
+#include <filesystem>
+
+namespace fs = std::filesystem;
+
 fs::path FindGame::getGamePath() {
     const std::string packageName = "com.ipoleksenko.sense";
 
@@ -21,10 +27,10 @@ fs::path FindGame::getGamePath() {
         return {};
     }
 
-    jmethodID currentApplicationMethod = env->GetStaticMethodID(
-            activityThreadClass, "currentApplication", "()Landroid/app/Application;");
+    jmethodID currentApplicationMethod =
+            env->GetStaticMethodID(activityThreadClass, "currentApplication", "()Landroid/app/Application;");
     if (!currentApplicationMethod) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find currentApplication() method");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find currentApplication()");
         env->DeleteLocalRef(activityThreadClass);
         return {};
     }
@@ -37,10 +43,10 @@ fs::path FindGame::getGamePath() {
     }
 
     jclass contextClass = env->GetObjectClass(appInstance);
-    jmethodID getPackageManagerMethod = env->GetMethodID(
-            contextClass, "getPackageManager", "()Landroid/content/pm/PackageManager;");
+    jmethodID getPackageManagerMethod =
+            env->GetMethodID(contextClass, "getPackageManager", "()Landroid/content/pm/PackageManager;");
     if (!getPackageManagerMethod) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find getPackageManager() method");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find getPackageManager()");
         env->DeleteLocalRef(contextClass);
         env->DeleteLocalRef(activityThreadClass);
         return {};
@@ -55,10 +61,10 @@ fs::path FindGame::getGamePath() {
     }
 
     jclass pmClass = env->GetObjectClass(packageManager);
-    jmethodID getPackageInfoMethod = env->GetMethodID(
-            pmClass, "getPackageInfo", "(Ljava/lang/String;I)Landroid/content/pm/PackageInfo;");
+    jmethodID getPackageInfoMethod =
+            env->GetMethodID(pmClass, "getPackageInfo", "(Ljava/lang/String;I)Landroid/content/pm/PackageInfo;");
     if (!getPackageInfoMethod) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find getPackageInfo() method");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find getPackageInfo()");
         env->DeleteLocalRef(pmClass);
         env->DeleteLocalRef(packageManager);
         env->DeleteLocalRef(contextClass);
@@ -67,7 +73,7 @@ fs::path FindGame::getGamePath() {
     }
 
     jstring pkgName = env->NewStringUTF(packageName.c_str());
-    jobject packageInfo = env->CallObjectMethod(packageManager, getPackageInfoMethod, pkgName, 0);
+    env->CallObjectMethod(packageManager, getPackageInfoMethod, pkgName, 0);
 
     bool installed = true;
     if (env->ExceptionCheck()) {
@@ -86,16 +92,67 @@ fs::path FindGame::getGamePath() {
         return {};
     }
 
-    fs::path mediaPath = "/storage/emulated/0/Android/media/";
-    mediaPath /= packageName;
+    jobject activity = (jobject)SDL_AndroidGetActivity();
+    if (!activity) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to get SDL activity");
+        return {};
+    }
 
-    if (!fs::exists(mediaPath)) {
-        try {
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID getExternalFilesDirMethod =
+            env->GetMethodID(activityClass, "getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;");
+    if (!getExternalFilesDirMethod) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find getExternalFilesDir()");
+        env->DeleteLocalRef(activityClass);
+        return {};
+    }
+
+    jobject dirObj = env->CallObjectMethod(activity, getExternalFilesDirMethod, nullptr);
+    if (!dirObj) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "getExternalFilesDir() returned null");
+        env->DeleteLocalRef(activityClass);
+        return {};
+    }
+
+    jclass fileClass = env->FindClass("java/io/File");
+    jmethodID getAbsolutePathMethod =
+            env->GetMethodID(fileClass, "getAbsolutePath", "()Ljava/lang/String;");
+    if (!getAbsolutePathMethod) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to find getAbsolutePath()");
+        env->DeleteLocalRef(fileClass);
+        env->DeleteLocalRef(dirObj);
+        env->DeleteLocalRef(activityClass);
+        return {};
+    }
+
+    jstring jPath = (jstring)env->CallObjectMethod(dirObj, getAbsolutePathMethod);
+    const char* cPath = env->GetStringUTFChars(jPath, nullptr);
+    fs::path basePath = cPath;
+
+    env->ReleaseStringUTFChars(jPath, cPath);
+    env->DeleteLocalRef(jPath);
+    env->DeleteLocalRef(fileClass);
+    env->DeleteLocalRef(dirObj);
+    env->DeleteLocalRef(activityClass);
+
+    std::string base = basePath.string();
+    size_t pos = base.find("/Android/data/");
+    if (pos == std::string::npos) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unexpected external path: %s", base.c_str());
+        return {};
+    }
+
+    std::string targetPath = base.substr(0, pos) + "/Android/media/" + packageName;
+    fs::path mediaPath = targetPath;
+
+    try {
+        if (!fs::exists(mediaPath)) {
             fs::create_directories(mediaPath);
             SDL_Log("Created directory: %s", mediaPath.string().c_str());
-        } catch (const std::exception& e) {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create directory: %s", e.what());
         }
+    } catch (const std::exception& e) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create directory: %s", e.what());
+        return {};
     }
 
     SDL_Log("Game media path: %s", mediaPath.string().c_str());

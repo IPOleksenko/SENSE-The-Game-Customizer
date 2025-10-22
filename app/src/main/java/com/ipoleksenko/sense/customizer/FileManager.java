@@ -82,23 +82,6 @@ public class FileManager extends SDLActivity {
         });
     }
 
-    private static String getRealPathFromUri(Context context, Uri uri) {
-        if ("file".equalsIgnoreCase(uri.getScheme())) {
-            return uri.getPath();
-        } else if ("content".equalsIgnoreCase(uri.getScheme())) {
-            String[] projection = { MediaStore.Images.Media.DATA };
-            try (Cursor cursor = context.getContentResolver().query(uri, projection, null, null, null)) {
-                if (cursor != null && cursor.moveToFirst()) {
-                    int columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-                    return cursor.getString(columnIndex);
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to get real path from URI: " + uri, e);
-            }
-        }
-        return null;
-    }
-
     public static void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
         if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK && data != null) {
             Uri uri = data.getData();
@@ -344,7 +327,6 @@ public class FileManager extends SDLActivity {
 
             Log.i(TAG, "Copy complete: " + totalBytes + " bytes in " + elapsed + " ms");
             Log.i(TAG, "File saved to: " + destUri);
-            Log.i(TAG, "-------------------------------");
 
              DocumentFile decorDir = DocumentFile.fromTreeUri(context, Uri.parse(PROVIDER_URI + "decor"));
             if (decorDir != null) {

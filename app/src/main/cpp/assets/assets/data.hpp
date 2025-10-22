@@ -11,7 +11,6 @@ enum class Folders {
     Localization,
     Font,
     Decor,
-    ImportExport,
     SavePlay
 };
 
@@ -175,6 +174,8 @@ struct CustomeDecorationList {
             name = "unknown";
         }
 
+        sanitizeFileName(name);
+
         if (!isNameTaken(name, list, this))
             return;
 
@@ -194,6 +195,15 @@ struct CustomeDecorationList {
         addOperation(CustomeDecorationOperationEnum::Rename);
     }
 
+    void sanitizeFileName(std::string& s) {
+        static const std::string invalidChars = "\\/:*?\"<>|";
+
+        for (char& c : s) {
+            if (invalidChars.find(c) != std::string::npos) {
+                c = '_';
+            }
+        }
+    }
 };
 
 extern std::vector<CustomeDecorationList> CustomDecorList;

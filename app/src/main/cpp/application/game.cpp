@@ -433,8 +433,8 @@ void Game::DrawAddCustomDecorTab(SDL_Renderer* renderer, const std::filesystem::
     ImGui::Separator();
     ImGui::Spacing();
 
-    ImGui::Text("Folder: %s", gamePath.string().c_str());
-    ImGui::Text("Loaded items: %d", (int)CustomDecorList.size());
+    ImGui::TextWrapped("Folder: %s", gamePath.string().c_str());
+    ImGui::TextWrapped("Loaded items: %d", (int)CustomDecorList.size());
     ImGui::Spacing();
 
     if (CustomDecorList.empty()) {
@@ -455,7 +455,7 @@ void Game::DrawAddCustomDecorTab(SDL_Renderer* renderer, const std::filesystem::
         }
 
         ImGui::Separator();
-        ImGui::Text("Name:");
+        ImGui::TextWrapped("Name:");
         ImGui::SameLine();
 
         char buf[1024];
@@ -507,7 +507,7 @@ void Game::DrawAddCustomDecorTab(SDL_Renderer* renderer, const std::filesystem::
         }
 
         if (!item.operations.empty()) {
-            ImGui::Text("Operations:");
+            ImGui::TextWrapped("Operations:");
             for (auto op : item.operations) {
                 const char* label = "";
                 switch (op) {
@@ -517,7 +517,7 @@ void Game::DrawAddCustomDecorTab(SDL_Renderer* renderer, const std::filesystem::
                 case CustomeDecorationOperationEnum::Rename: label = "Rename"; break;
                 }
                 ImGui::SameLine();
-                ImGui::Text("[%s]", label);
+                ImGui::TextWrapped("[%s]", label);
             }
         }
 
@@ -529,7 +529,6 @@ void Game::DrawAddCustomDecorTab(SDL_Renderer* renderer, const std::filesystem::
     }
 }
 
-
 void Game::play(Window& window, Renderer& renderer) {
 
     SDL_Event event{};
@@ -538,8 +537,11 @@ void Game::play(Window& window, Renderer& renderer) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
-
+#if defined(__ANDROID__)
+    ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 50.0f);
+#else
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 20.0f);
+#endif
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 6.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarPadding, 3.0f);
 
@@ -613,11 +615,12 @@ void Game::play(Window& window, Renderer& renderer) {
 
         ImVec2 screenSize = ImGui::GetIO().DisplaySize;
 
-        float buttonWidth = screenSize.x * 0.19f;
-#if !defined(__ANDROID__)
-        float buttonHeight = screenSize.y * 0.06f;
-#else
+#if defined(__ANDROID__)
+        float buttonWidth = screenSize.x * 0.235f;
         float buttonHeight = screenSize.y * 0.1f;
+#else
+        float buttonWidth = screenSize.x * 0.19f;
+        float buttonHeight = screenSize.y * 0.06f;
 #endif
         ImVec2 buttonSize(buttonWidth, buttonHeight);
 
@@ -640,15 +643,7 @@ void Game::play(Window& window, Renderer& renderer) {
         ImGui::SameLine();
         drawButton("Decor", Folders::Decor);
         ImGui::SameLine();
-#if !defined(__ANDROID__)
-        drawButton("Import/Export", Folders::ImportExport);
-        ImGui::SameLine();
         drawButton("Save/Play", Folders::SavePlay);
-#else
-        drawButton("Import\nExport", Folders::ImportExport);
-        ImGui::SameLine();
-        drawButton("Save\nPlay", Folders::SavePlay);
-#endif
 
         static std::unordered_map<std::string, bool> cellOpen;
 
@@ -659,7 +654,7 @@ void Game::play(Window& window, Renderer& renderer) {
                 }
 
                 if (cellOpen[key]) {
-                    int newlines = 2;
+                    int newlines = 3;
                     for (char c : value) if (c == '\n') newlines++;
 
                     float lineHeight = ImGui::GetTextLineHeight();
@@ -727,32 +722,6 @@ void Game::play(Window& window, Renderer& renderer) {
 
 
                 ImGui::EndTabBar();
-            }
-        }
-        else if (currentFolder == Folders::ImportExport)
-        {
-            ImVec2 windowSize = ImGui::GetWindowSize();
-
-            float buttonWidth = screenSize.x * 0.4f;
-            float buttonHeight = screenSize.y * 0.4f;
-            float spacing = screenSize.x * 0.01f;
-
-            float totalWidth = buttonWidth * 2 + spacing;
-            float startX = (windowSize.x - totalWidth) * 0.5f;
-            float startY = (windowSize.y - buttonHeight) * 0.5f;
-
-            ImGui::SetCursorPos(ImVec2(startX, startY));
-
-            if (ImGui::Button("Import", ImVec2(buttonWidth, buttonHeight)))
-            {
-                SDL_Log("Import clicked");
-            }
-
-            ImGui::SameLine(0.0f, spacing);
-
-            if (ImGui::Button("Export", ImVec2(buttonWidth, buttonHeight)))
-            {
-                SDL_Log("Export clicked");
             }
         }
         else if (currentFolder == Folders::SavePlay)

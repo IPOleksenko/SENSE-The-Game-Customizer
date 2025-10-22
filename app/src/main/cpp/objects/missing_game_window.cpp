@@ -19,7 +19,14 @@ void MissingGameWindow::showMissingGameWindow(std::vector<SDL_GameController*> c
     SDL_Event event{};
     bool isRunning = true;
 
-#if !defined(__ANDROID__)
+#if defined(__ANDROID__)
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->AddFontDefault();
+    io.FontGlobalScale = 3.0f;
+
+    ImGui_ImplSDLRenderer2_DestroyDeviceObjects();
+    ImGui_ImplSDLRenderer2_CreateDeviceObjects();
+#else
     m_steamRunning = SteamAPI_Init();
 #endif
 
@@ -125,8 +132,8 @@ void MissingGameWindow::showMissingGameWindow(std::vector<SDL_GameController*> c
             {
                 ImGui::TextWrapped("You don't own the base game.\nPlease purchase it on %s to continue.", storeName);
 
-                ImVec2 btn(260, 70);
-                ImGui::SetCursorPos(ImVec2(center.x - btn.x / 2, center.y + 20));
+                ImVec2 btn(600, 70);
+                ImGui::SetCursorPos(ImVec2(center.x - btn.x / 2, center.y + 60));
 
                 std::string openStoreButton = std::string("Open ") + storeName + " Store Page";
                 if (ImGui::Button(openStoreButton.c_str(), btn))
@@ -171,8 +178,8 @@ void MissingGameWindow::showMissingGameWindow(std::vector<SDL_GameController*> c
             {
                 ImGui::TextWrapped("The game is not installed.\nPlease install it from %s to continue.", storeName);
 
-                ImVec2 btn(240, 70);
-                ImGui::SetCursorPos(ImVec2(center.x - btn.x / 2, center.y + 20));
+                ImVec2 btn(600, 70);
+                ImGui::SetCursorPos(ImVec2(center.x - btn.x / 2, center.y + 60));
 
                 std::string installButton = std::string("Install via ") + storeName;
                 if (ImGui::Button(installButton.c_str(), btn))
@@ -217,8 +224,8 @@ void MissingGameWindow::showMissingGameWindow(std::vector<SDL_GameController*> c
             {
                 ImGui::TextWrapped("The game is installed and ready to use!\nPlease restart the application to continue.");
 
-                ImVec2 btn(200, 60);
-                ImGui::SetCursorPos(ImVec2(center.x - btn.x / 2, center.y + 20));
+                ImVec2 btn(600, 70);
+                ImGui::SetCursorPos(ImVec2(center.x - btn.x / 2, center.y + 60));
                 if (ImGui::Button("Close Application", btn))
                     isRunning = false;
             }
