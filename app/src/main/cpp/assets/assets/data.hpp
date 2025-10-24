@@ -51,6 +51,7 @@ Touchscreen:
 
 #define MAKE_ENTRY(key, text) { key, [](){ std::array<char,1024> arr{}; strncpy(arr.data(), text, arr.size() - 1); return arr; }() }
 
+extern std::vector<std::pair<std::string, std::array<char, 1024>>> LocalizationStandartList;
 extern std::vector<std::pair<std::string, std::array<char, 1024>>> LocalizationList;
 
 extern std::vector<std::pair<std::string, std::variant<int, std::array<char, 1024>>>> FontList;

@@ -567,10 +567,20 @@ namespace FileManager {
         {
             std::string path = joinPath(gamePath.string(), LOCALIZATION_FILE);
             std::vector<std::string> lines;
+
             if (fileExists(path))
                 lines = readTextFile(path);
 
             for (auto& [key, value] : LocalizationList) {
+                auto it = std::find_if(LocalizationStandartList.begin(), LocalizationStandartList.end(),
+                    [&](const auto& pair) { return pair.first == key; });
+
+                if (it != LocalizationStandartList.end()) {
+                    if (value[0] == '\0') {
+                        std::strncpy(value.data(), it->second.data(), value.size() - 1);
+                        SDL_Log("Filled empty localization key '%s' with default value.", key.c_str());
+                    }
+                }
                 updateOrAddLine(lines, key, std::string(value.data()), true);
             }
 

@@ -1,6 +1,6 @@
 #include <assets/data.hpp>
 
-std::vector<std::pair<std::string, std::array<char, 1024>>> LocalizationList = {
+std::vector<std::pair<std::string, std::array<char, 1024>>> LocalizationStandartList = {
     MAKE_ENTRY("LOADING_TEXT", "Loading..."),
     MAKE_ENTRY("ENDLESS_MODE", "ENDLESS MODE"),
     MAKE_ENTRY("IDLE", IDLE_TEXT),
@@ -26,6 +26,8 @@ std::vector<std::pair<std::string, std::array<char, 1024>>> LocalizationList = {
     MAKE_ENTRY("T_START", "In this chaos, you seek meaning, but chaos demands no explanation."),
     MAKE_ENTRY("FINAL_START", "THE UNIVERSE DOESN'T MAKE SENSE.")
 };
+
+std::vector<std::pair<std::string, std::array<char, 1024>>> LocalizationList = LocalizationStandartList;
 
 std::vector<std::pair<std::string, std::variant<int, std::array<char, 1024>>>> FontList = {
     {"FONT", std::array<char, 1024>{""}},
