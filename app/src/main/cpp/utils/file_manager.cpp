@@ -577,7 +577,7 @@ namespace FileManager {
 
                 if (it != LocalizationStandartList.end()) {
                     if (value[0] == '\0') {
-                        std::strncpy(value.data(), it->second.data(), value.size() - 1);
+                        strncpy(value.data(), it->second.data(), value.size() - 1);
                         SDL_Log("Filled empty localization key '%s' with default value.", key.c_str());
                     }
                 }
